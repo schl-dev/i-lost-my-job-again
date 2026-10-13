@@ -14,6 +14,8 @@ Le jeu n'est pas signé : au premier lancement, Windows SmartScreen peut affiche
 
 ## Recruteur IA
 
+À chaque entretien, l'IA **invente le poste** à pourvoir dans un univers tiré au sort (station spatiale, château médiéval, food truck…), en évitant les univers et les postes déjà proposés récemment. Hors-ligne, le jeu pioche dans une liste de 20 postes.
+
 Le recruteur est joué par le **serveur IA du jeu** (`https://ai.drafthome.fr`, un [GroqProxy](https://github.com/draft-yt-gaming/GroqProxy)), avec le modèle **`openai/gpt-oss-120b`**, imposé. Les joueurs n'ont aucune clé à fournir et ne peuvent pas changer de modèle. Sans connexion (ou si le serveur est saturé), le jeu passe en mode hors-ligne avec des réponses toutes faites.
 
 ### Protection de la clé du serveur

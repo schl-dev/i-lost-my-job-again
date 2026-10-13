@@ -38,13 +38,14 @@ const ai = new GameAI({ baseUrl: AI_URL, token: loadToken() });
 
 /* ============ Mises à jour (releases GitHub) ============ */
 // Au lancement, la version installée regarde s'il y a une nouvelle release sur GitHub et la propose au joueur.
-// En développement, ILMJ_UPDATE_URL pointe vers un faux serveur de mises à jour et ILMJ_UPDATE_DRY_RUN évite d'installer.
+// En développement, ILMJ_UPDATE_URL pointe vers un faux serveur de mises à jour (ou « github » pour les vraies releases,
+// via dev-app-update.yml) et ILMJ_UPDATE_DRY_RUN évite d'installer.
 const UPDATE_TEST = !app.isPackaged && process.env.ILMJ_UPDATE_URL;
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 if (UPDATE_TEST) {
   autoUpdater.forceDevUpdateConfig = true;
-  autoUpdater.setFeedURL({ provider: "generic", url: process.env.ILMJ_UPDATE_URL });
+  if (process.env.ILMJ_UPDATE_URL !== "github") autoUpdater.setFeedURL({ provider: "generic", url: process.env.ILMJ_UPDATE_URL });
 }
 let updateFound = false;
 const sendUpdate = (type, data = {}) => { if (win) win.webContents.send("update:event", { type, ...data }); };
