@@ -14,6 +14,8 @@ Le jeu n'est pas signé : au premier lancement, Windows SmartScreen peut affiche
 
 ## Recruteur IA
 
+Le recruteur a un **visage expressif qui suit la situation** : il réfléchit (regard en l'air, main au menton) pendant que l'IA prépare sa réponse, t'écoute quand c'est ton tour (souriant si l'entretien se passe bien, bras croisés et moue si ça tourne mal), s'ennuie et bâille si tu mets plus de 20 s à répondre, sursaute quand ta note bondit ou s'effondre, et finit ravi, moqueur ou furieux (visage rouge, dents serrées, veine 💢). Quand il parle, il prend l'humeur choisie par l'IA (amusé, mort de rire, impressionné, surpris, agacé, blasé, méfiant, furieux).
+
 À chaque entretien, l'IA **invente le poste** à pourvoir dans un univers tiré au sort (station spatiale, château médiéval, food truck…), en évitant les univers et les postes déjà proposés récemment. Hors-ligne, le jeu pioche dans une liste de 20 postes.
 
 Le recruteur est joué par le **serveur IA du jeu** (`https://ai.drafthome.fr`, un [GroqProxy](https://github.com/draft-yt-gaming/GroqProxy)), avec le modèle **`openai/gpt-oss-120b`**, imposé. Les joueurs n'ont aucune clé à fournir et ne peuvent pas changer de modèle. Sans connexion (ou si le serveur est saturé), le jeu passe en mode hors-ligne avec des réponses toutes faites.

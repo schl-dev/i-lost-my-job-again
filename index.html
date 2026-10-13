@@ -296,7 +296,7 @@ function offlineJob(){
   return pool[Math.floor(Math.random()*pool.length)];
 }
 const pick = list => list[Math.floor(Math.random()*list.length)];
-const MOODS = ["neutral","amused","impressed","annoyed","suspicious","furious"];
+const MOODS = ["neutral","amused","laughing","impressed","surprised","annoyed","bored","suspicious","furious"];
 const MAXQ = 5;
 const MAXLEN = 500; // longueur max d'une réponse
 
@@ -344,7 +344,7 @@ Invente d'abord le poste à pourvoir pour cet entretien : un intitulé de métie
 Il doit être vraiment différent de ces postes déjà proposés : ${recent.map(j => `"${j}"`).join(", ")}.` : ""}
 Le candidat entre dans ton bureau. Accueille-le en 1 ou 2 phrases dans ton personnage, puis pose ta première question d'entretien, liée à ce poste.
 Réponds UNIQUEMENT avec un objet JSON, sans texte autour :
-{"poste":"l'intitulé du poste","reaction":"ton accueil","question":"ta première question","mood":"neutral|amused|suspicious"}`;
+{"poste":"l'intitulé du poste","reaction":"ton accueil","question":"ta première question","mood":"neutral|amused|suspicious|bored"}`;
   return askAI(p);
 }
 // Intitulé de poste renvoyé par l'IA : une ligne courte, sinon on n'en tient pas compte.
@@ -365,10 +365,10 @@ Juge la DERNIÈRE réponse : cohérence avec ses réponses précédentes (relèv
 ${isFinal
  ? `C'était la dernière question. Donne ta réaction (1 à 2 phrases), puis ton verdict. Score final = ${S.score} + delta. "hired" seulement si le score final est au moins 65, sinon "rejected". Si "hired", écris "aftermath" : une phrase comique expliquant comment le candidat a perdu ce job quelques jours après (ex : "Viré au bout de 3 jours pour avoir…"). Sinon "aftermath" est une petite pique de fin.
 Réponds UNIQUEMENT en JSON :
-{"reaction":"...","delta":0,"mood":"neutral|amused|impressed|annoyed|suspicious|furious","verdict":"hired|rejected","aftermath":"..."}`
+{"reaction":"...","delta":0,"mood":"neutral|amused|laughing|impressed|surprised|annoyed|bored|suspicious|furious","verdict":"hired|rejected","aftermath":"..."}`
  : `Donne ta réaction en personnage (1 à 2 phrases), puis ta question suivante (qui peut rebondir sur ce qu'il a dit ou le piéger).
 Réponds UNIQUEMENT en JSON :
-{"reaction":"...","question":"...","delta":0,"mood":"neutral|amused|impressed|annoyed|suspicious|furious"}`}`;
+{"reaction":"...","question":"...","delta":0,"mood":"neutral|amused|laughing|impressed|surprised|annoyed|bored|suspicious|furious"}`}`;
   return askAI(p);
 }
 
@@ -386,7 +386,7 @@ function offlineTurn(answer, isFinal){
   d += Math.round(Math.random()*10-5);
   const good = d > 0;
   const reaction = (good?OFF_R.good:OFF_R.bad)[Math.floor(Math.random()*3)];
-  const mood = d > 8 ? "impressed" : d > 0 ? "amused" : d < -10 ? "annoyed" : "suspicious";
+  const mood = d > 8 ? pick(["impressed","laughing"]) : d > 0 ? "amused" : d < -10 ? pick(["annoyed","bored"]) : "suspicious";
   if(isFinal){
     const hired = S.score + d >= 65;
     return {reaction, delta:d, mood, verdict: hired?"hired":"rejected",
@@ -537,7 +537,7 @@ function makeEngine(ctx, dest){
 
 // Voix du recruteur quand son texte s'écrit (petits bips façon Animal Crossing).
 const VOWEL_PITCH = {a:0,"à":0,"â":0,e:2,"é":3,"è":2,"ê":2,"ë":2,i:4,"î":4,"ï":4,y:4,o:-2,"ô":-2,u:-3,"ù":-3,"û":-3};
-const MOOD_PITCH = {neutral:0, amused:2, impressed:1, annoyed:-2, suspicious:-1, furious:4};
+const MOOD_PITCH = {neutral:0, amused:2, laughing:3, impressed:1, surprised:3, annoyed:-2, bored:-3, suspicious:-1, furious:4, delighted:3, smug:-1};
 function blip(ctx, dest, freq, wave, vel){
   const t = ctx.currentTime + 0.005;
   const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
@@ -628,6 +628,7 @@ function typeInto(el, text){
   });
 }
 async function recSays(reaction, question){
+  setFace(null);
   MUSIC.setMode("interview");
   $("who").textContent = S.rec.name;
   $("ask").textContent = "";
@@ -636,6 +637,7 @@ async function recSays(reaction, question){
   R.talking = false;
 }
 function thinking(){
+  setFace("thinking");
   MUSIC.setMode("thinking");
   $("who").textContent = S.rec.name + " réfléchit";
   $("say").innerHTML = '<span class="dots"><span></span><span></span><span></span></span>';
@@ -657,6 +659,7 @@ function setScore(v, delta){
   }
 }
 function setInput(on){
+  if(on && S.rec) playerTurn(); else clearTimeout(idleTimer);
   $("answer").disabled = !on; $("send").disabled = !on || !$("answer").value.trim();
   if(!on) MIC.cancel();
   MIC.refresh();
@@ -746,6 +749,7 @@ async function submitAnswer(){
   let delta = Math.max(-25, Math.min(25, parseInt(r.delta,10) || 0));
   S.history.push({who:"you", text:answer});
   setScore(S.score + delta, delta);
+  if(Math.abs(delta) >= 12) flashFace("surprised", 900);
   setMood(MOODS.includes(r.mood) ? r.mood : "neutral");
   if(delta <= -10) CAM.shake = reduced ? 0 : 0.5;
   CAM.mode = S.score <= 30 ? "tense" : "idle";
@@ -776,9 +780,9 @@ function endInterview(v, line, after){
   MUSIC.setMode("end"); MUSIC.jingle(v);
   setTimeout(() => { if(!$("end").hidden) MUSIC.setMode("menu"); }, 3500);
   const st = $("stamp");
-  if(v === "hired"){ st.textContent = "EMBAUCHÉ"; st.style.color = "#1f9e6e"; setMood("impressed"); confetti(); }
-  else if(v === "fired"){ st.textContent = "VIRÉ"; st.style.color = "#e0446b"; setMood("furious"); }
-  else { st.textContent = "REFUSÉ"; st.style.color = "#e0446b"; setMood("annoyed"); }
+  if(v === "hired"){ st.textContent = "EMBAUCHÉ"; st.style.color = "#1f9e6e"; setFace(null); setMood("delighted"); confetti(); }
+  else if(v === "fired"){ st.textContent = "VIRÉ"; st.style.color = "#e0446b"; setFace(null); setMood("furious"); }
+  else { st.textContent = "REFUSÉ"; st.style.color = "#e0446b"; setFace(null); setMood("smug"); }
   $("vline").textContent = line || "";
   $("after").textContent = v === "hired" ? (after ? after + " Jobs perdus +1." : "Tu as perdu ce job trois jours plus tard.") : after;
   setTimeout(()=>{ $("end").hidden = false; $("next").focus(); }, reduced ? 0 : 700);
@@ -878,6 +882,7 @@ function createMic(){
     btn.setAttribute("aria-pressed", String(st === "rec"));
     $("answer").placeholder = st === "rec" ? "Je t'écoute… (■ pour arrêter)" : st === "busy" ? "Transcription…" : "Ta réponse… ou 🎤 pour parler";
     MUSIC.duck(st === "rec");
+    if(st === "rec") playerTurn(); // il t'écoute parler
     refresh();
   }
   function refresh(){ btn.disabled = state === "busy" || state === "starting" || (state === "idle" && $("answer").disabled); }
@@ -979,6 +984,7 @@ $("go").onclick = startInterview;
 $("next").onclick = startInterview;
 $("form").addEventListener("submit", e=>{ e.preventDefault(); submitAnswer(); });
 $("answer").addEventListener("input", e=>{
+  if(!S.busy && S.rec) playerTurn(); // le joueur écrit : il redevient attentif
   const t = e.target; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight,110) + "px";
   $("count").textContent = MAXLEN - t.value.length;
   $("send").disabled = !t.value.trim() || S.busy;
@@ -1063,8 +1069,86 @@ fgPlant.add(mesh(new THREE.CylinderGeometry(0.3,0.24,0.6,12), 0x3a6ea5, 0, 1.25,
 for(let i=0;i<6;i++){ const l = mesh(new THREE.SphereGeometry(0.28,8,6), 0x2fa86a, Math.sin(i)*0.25, 1.7+i*0.14, Math.cos(i)*0.2); l.scale.set(0.8,1.5,0.8); fgPlant.add(l); }
 scene.add(fgPlant);
 
-/* Recruteur */
-const R = {group:null, parts:{}, mood:"neutral", talking:false, t:{lean:0, brow:0, browTilt:0, armUp:0, flush:0, squint:1, bounce:0, tilt:0}};
+/* Recruteur : expressions du visage */
+// Le visage suit la situation : l'humeur choisie par l'IA quand il parle, et sinon ce qui se passe
+// (il réfléchit, t'écoute, s'ennuie si tu tardes, est surpris par une grosse variation de note…).
+// lid : paupières (0 ouvert → 1 fermé) ; look : direction du regard ; arms : [bras gauche, bras droit].
+const ARMS = {rest:[0,0.15], crossed:[-1.25,-0.9], up:[-2.5,0.35], chin:[-2.05,-0.75], watch:[-1.35,-0.45]};
+const EXPR_BASE = {mouth:"flat", lid:.18, eye:1, browY:0, browTilt:0, browAsym:0, lookX:0, lookY:0, lean:0, tilt:0, turn:0,
+  bounce:0, blush:0, flush:0, vein:0, sweat:0, dart:0, nod:0, shake:0, arms:["rest","rest"]};
+const EXPR = {
+  neutral:      {},
+  amused:       {mouth:"smile", lid:.32, browY:.04, browTilt:-.1, lean:-.05, tilt:.08, bounce:.5, blush:.5},
+  laughing:     {mouth:"open", lid:.88, browY:.07, browTilt:-.15, lean:-.14, tilt:.1, bounce:1.3, blush:.8, arms:["crossed","crossed"]},
+  impressed:    {mouth:"oh", lid:0, eye:1.15, browY:.09, browTilt:-.2, lean:.18, blush:.3, arms:["up","up"]},
+  surprised:    {mouth:"oh", lid:0, eye:1.3, browY:.12, browTilt:-.25, lean:-.12, sweat:1, arms:["up","up"]},
+  annoyed:      {mouth:"frown", lid:.45, browY:-.03, browTilt:.3, lean:-.1, turn:-.15, flush:.2, arms:["crossed","crossed"]},
+  bored:        {mouth:"flat", lid:.55, browY:-.02, browTilt:-.08, lookX:.5, lookY:-.6, lean:-.15, tilt:.22, arms:["rest","watch"]},
+  suspicious:   {mouth:"smirk", lid:.4, browY:-.01, browTilt:.2, browAsym:.07, lean:.22, tilt:.15, dart:1, arms:["crossed","crossed"]},
+  furious:      {mouth:"teeth", lid:.35, eye:1.05, browY:-.05, browTilt:.6, lean:.15, flush:1, vein:1, shake:1, arms:["crossed","crossed"]},
+  thinking:     {mouth:"hmm", lid:.12, browY:.02, browAsym:.06, lookX:.6, lookY:.75, tilt:-.12, turn:.12, arms:["rest","chin"]},
+  listening:    {mouth:"flat", lid:.1, eye:1.05, browY:.03, lean:.12, tilt:.1, nod:1},
+  listeningWarm:{mouth:"smile", lid:.2, eye:1.05, browY:.04, browTilt:-.08, lean:.1, tilt:.08, nod:1, blush:.2},
+  listeningCold:{mouth:"frown", lid:.4, browY:-.02, browTilt:.22, lean:.16, tilt:-.05, arms:["crossed","crossed"]},
+  delighted:    {mouth:"open", lid:.85, browY:.08, browTilt:-.18, lean:-.1, bounce:1.4, blush:.9, arms:["up","up"]},
+  smug:         {mouth:"smirk", lid:.45, browTilt:.1, browAsym:.05, lean:-.12, tilt:-.1, arms:["crossed","crossed"]}
+};
+for(const k in EXPR) EXPR[k] = {...EXPR_BASE, ...EXPR[k]};
+// Valeurs numériques interpolées d'une expression à l'autre (les bras sont dépliés en 4 angles).
+function exprTargets(E){
+  const t = {};
+  for(const k in E) if(typeof E[k] === "number") t[k] = E[k];
+  [t.aLx, t.aLz] = ARMS[E.arms[0]]; [t.aRx, t.aRz] = ARMS[E.arms[1]];
+  return t;
+}
+const R = {group:null, parts:{}, mood:"neutral", state:null, flash:null, talking:false,
+  t:exprTargets(EXPR.neutral), nextBlink:2, blinkUntil:0};
+
+function setMood(m){ R.mood = EXPR[m] ? m : "neutral"; }
+function setFace(state){ R.state = state; }                       // situation (réfléchit, écoute…) ; null = humeur
+function flashFace(name, ms){ R.flash = {name, until: performance.now() + ms}; } // réaction brève
+function currentExpr(){
+  if(R.flash && R.flash.until > performance.now()) return R.flash.name;
+  return R.state && !R.talking ? R.state : R.mood;
+}
+// Pendant que le joueur répond : attentif, plus ou moins aimable selon la note ; s'ennuie au bout de 20 s.
+let idleTimer = 0;
+function listenFace(){ return S.score >= 65 ? "listeningWarm" : S.score <= 30 ? "listeningCold" : "listening"; }
+function playerTurn(){
+  setFace(listenFace());
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if(R.state && R.state.startsWith("listening")) setFace("bored"); }, 20000);
+}
+
+// Pièces du visage sans ombre portée (trop petites, elles feraient des taches sur la tête).
+function face(geo, mat, x=0, y=0, z=0){
+  const m = new THREE.Mesh(geo, typeof mat === "number" ? toon(mat) : mat); m.position.set(x,y,z); return m;
+}
+const basic = (c, extra) => new THREE.MeshBasicMaterial({color:c, ...extra});
+function buildMouths(headG){
+  const lip = 0x7a2e3a, inside = basic(0x4a1520), g = new THREE.Group();
+  g.position.set(0, -0.17, 0.39); headG.add(g);
+  const shapes = {};
+  const add = (name, ...parts) => { const s = new THREE.Group(); parts.forEach(p => s.add(p)); g.add(s); shapes[name] = s; return s; };
+  add("flat", face(new THREE.BoxGeometry(0.17,0.035,0.03), lip));
+  const smile = face(new THREE.TorusGeometry(0.085,0.02,6,16,Math.PI), lip, 0, 0.045); smile.rotation.z = Math.PI;
+  add("smile", smile);
+  add("frown", face(new THREE.TorusGeometry(0.085,0.02,6,16,Math.PI), lip, 0, -0.05));
+  const oh = face(new THREE.SphereGeometry(0.05,14,10), inside); oh.scale.set(1,1.25,0.35);
+  add("oh", oh);
+  const tongue = face(new THREE.CircleGeometry(0.045,14), basic(0xe06070), 0, -0.065, 0.003); tongue.scale.y = 0.55;
+  add("open", face(new THREE.CircleGeometry(0.1,20,Math.PI,Math.PI), inside), tongue);
+  const teeth = [face(new THREE.BoxGeometry(0.2,0.08,0.024), inside), face(new THREE.BoxGeometry(0.18,0.058,0.026), basic(0xffffff), 0, 0, 0.002),
+    face(new THREE.BoxGeometry(0.18,0.005,0.028), inside, 0, 0, 0.003)];
+  [-0.045,0,0.045].forEach(x => teeth.push(face(new THREE.BoxGeometry(0.005,0.058,0.028), inside, x, 0, 0.003)));
+  add("teeth", ...teeth);
+  const smirk = face(new THREE.TorusGeometry(0.07,0.018,6,12,Math.PI*0.75), lip, 0.03, 0.03); smirk.rotation.z = Math.PI + 0.5;
+  add("smirk", smirk);
+  const hmm = face(new THREE.BoxGeometry(0.1,0.03,0.03), lip, 0.04); hmm.rotation.z = 0.18;
+  add("hmm", hmm);
+  return {group:g, shapes};
+}
+
 function buildRecruiter(rec){
   if(R.group) scene.remove(R.group);
   const g = new THREE.Group(); g.position.set(0, 0, -0.95);
@@ -1074,15 +1158,37 @@ function buildRecruiter(rec){
   const headG = new THREE.Group(); headG.position.y = 1.12; upper.add(headG);
   const headMat = toon(rec.skin);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.42,22,18), headMat); head.castShadow = true; headG.add(head);
-  const eyes = [];
+  // Yeux : blanc, pupille aplatie (avec reflet) qui peut regarder ailleurs, paupière = calotte couleur peau qui pivote.
+  const eyes = [], pupils = [], lids = [];
   [-0.15,0.15].forEach(x=>{
     const e = new THREE.Group(); e.position.set(x, 0.07, 0.35);
-    e.add(mesh(new THREE.SphereGeometry(0.1,12,10), 0xffffff));
-    e.add(mesh(new THREE.SphereGeometry(0.05,10,8), 0x1e2a4a, 0, 0, 0.07));
+    e.add(face(new THREE.SphereGeometry(0.1,14,12), 0xffffff));
+    const pu = new THREE.Group(); pu.position.z = 0.08;
+    const iris = face(new THREE.SphereGeometry(0.046,12,10), 0x1e2a4a); iris.scale.z = 0.45; pu.add(iris);
+    pu.add(face(new THREE.SphereGeometry(0.012,8,6), basic(0xffffff), 0.016, 0.017, 0.013));
+    e.add(pu); pupils.push(pu);
+    const lid = face(new THREE.SphereGeometry(0.108,16,8,0,Math.PI*2,0,Math.PI/2), headMat); e.add(lid); lids.push(lid);
+    const lash = face(new THREE.TorusGeometry(0.108,0.011,6,28), 0x1e2a4a); lash.rotation.x = Math.PI/2; lid.add(lash); // bord de la paupière
     headG.add(e); eyes.push(e);
   });
-  const brows = [-0.15,0.15].map(x=>{ const b = mesh(new THREE.BoxGeometry(0.17,0.045,0.04), 0x1e2a4a, x, 0.22, 0.38); headG.add(b); return b; });
-  const mouth = mesh(new THREE.BoxGeometry(0.18,0.05,0.04), 0x7a2e3a, 0, -0.16, 0.39); headG.add(mouth);
+  const brows = [-0.15,0.15].map(x=>{ const b = face(new THREE.BoxGeometry(0.17,0.045,0.04), 0x1e2a4a, x, 0.22, 0.38); headG.add(b); return b; });
+  const mouth = buildMouths(headG);
+  // Joues roses (rire, gêne), veine de colère 💢, goutte de sueur (surprise).
+  const blushMat = basic(0xff6f91, {transparent:true, opacity:0, depthWrite:false});
+  [-1,1].forEach(sd => { const c = face(new THREE.CircleGeometry(0.055,16), blushMat, sd*0.24, -0.07, 0.338); c.rotation.y = sd*0.62; headG.add(c); });
+  const vein = new THREE.Group(); vein.position.set(0.24, 0.3, 0.27); vein.rotation.y = 0.5; vein.visible = false;
+  for(let i = 0; i < 4; i++){
+    const bit = new THREE.Group(); bit.rotation.z = i * Math.PI/2;
+    bit.add(face(new THREE.BoxGeometry(0.05,0.018,0.018), basic(0xe0233c), 0.045, 0.02));
+    bit.add(face(new THREE.BoxGeometry(0.018,0.05,0.018), basic(0xe0233c), 0.02, 0.045));
+    vein.add(bit);
+  }
+  headG.add(vein);
+  const sweat = new THREE.Group(); sweat.position.set(-0.37, 0.15, 0.18); sweat.visible = false;
+  const dropMat = basic(0x8fd8f5, {transparent:true, opacity:0.9});
+  sweat.add(face(new THREE.SphereGeometry(0.035,10,8), dropMat));
+  sweat.add(face(new THREE.ConeGeometry(0.034,0.06,10), dropMat, 0, 0.045));
+  headG.add(sweat);
   if(rec.acc === "moustache"){ const m = mesh(new THREE.BoxGeometry(0.3,0.07,0.06), 0x5a3a2a, 0, -0.07, 0.4); headG.add(m); }
   if(rec.acc === "chignon"){ headG.add(mesh(new THREE.SphereGeometry(0.2,12,10), 0x5a3a2a, 0, 0.45, -0.12)); const hair = mesh(new THREE.SphereGeometry(0.43,18,14,0,Math.PI*2,0,Math.PI/2.2), 0x5a3a2a); hair.rotation.x = -0.35; headG.add(hair); }
   if(rec.acc === "lunettes"){
@@ -1096,18 +1202,10 @@ function buildRecruiter(rec){
     pivot.add(mesh(new THREE.SphereGeometry(0.12,10,8), rec.skin, 0, -0.62, 0));
     return {pivot, s};
   });
-  R.group = g; R.parts = {upper, headG, headMat, baseSkin:new THREE.Color(rec.skin), eyes, brows, mouth, arms};
+  R.group = g;
+  R.parts = {upper, headG, headMat, baseSkin:new THREE.Color(rec.skin), eyes, pupils, lids, brows, mouth, blushMat, vein, sweat, arms};
   scene.add(g);
 }
-const POSES = {
-  neutral:   {lean:0,    brow:0,    browTilt:0,    armUp:0,   flush:0,   squint:1,   bounce:0,   tilt:0},
-  amused:    {lean:-0.05,brow:0.04, browTilt:-0.1, armUp:0.2, flush:0,   squint:0.75,bounce:1,   tilt:0.08},
-  impressed: {lean:0.18, brow:0.07, browTilt:-0.15,armUp:0.5, flush:0,   squint:1.15,bounce:0.4, tilt:0},
-  annoyed:   {lean:-0.1, brow:-0.03,browTilt:0.3,  armUp:1,   flush:0.2, squint:0.7, bounce:0,   tilt:0},
-  suspicious:{lean:0.22, brow:-0.02,browTilt:0.2,  armUp:0.3, flush:0,   squint:0.45,bounce:0,   tilt:0.2},
-  furious:   {lean:0.12, brow:-0.05,browTilt:0.55, armUp:1,   flush:1,   squint:0.6, bounce:0,   tilt:0}
-};
-function setMood(m){ R.mood = POSES[m] ? m : "neutral"; }
 
 /* Caméra automatique */
 const CAM = {mode:"idle", shake:0, pos:new THREE.Vector3(0,1.8,5), look:new THREE.Vector3(0,1.6,-0.6)};
@@ -1162,24 +1260,53 @@ function loop(){
 
   // Recruteur
   if(R.group){
-    const P = POSES[R.mood], s = R.t, k = 1 - Math.pow(0.02, dt);
-    for(const key in P) s[key] = lerp(s[key], P[key], k);
-    const p = R.parts;
+    const name = currentExpr(), E = EXPR[name], s = R.t, p = R.parts, k = 1 - Math.pow(0.015, dt);
+    const tg = exprTargets(E);
+    for(const key in tg) s[key] = lerp(s[key], tg[key], k);
+    const motion = reduced ? 0 : 1;
+    // Bâillement de temps en temps quand il s'ennuie.
+    const yawn = name === "bored" && !R.talking && (t % 7) < 1.4 && motion;
+
     p.upper.rotation.x = s.lean;
-    p.upper.position.y = 1.0 + Math.sin(t*1.6)*0.015 + Math.abs(Math.sin(t*9))*0.04*s.bounce;
-    p.headG.rotation.z = s.tilt + (R.mood === "furious" ? Math.sin(t*40)*0.02 : 0);
-    p.headG.rotation.y = Math.sin(t*0.5)*0.12;
-    p.brows[0].position.y = p.brows[1].position.y = 0.22 + s.brow;
+    p.upper.position.y = 1.0 + Math.sin(t*1.6)*0.015*motion + Math.abs(Math.sin(t*9))*0.04*s.bounce*motion;
+    p.headG.rotation.z = s.tilt + Math.sin(t*40)*0.02*s.shake*motion;
+    p.headG.rotation.y = Math.sin(t*0.5)*0.12*motion + s.turn;
+    p.headG.rotation.x = Math.sin(t*2.4)*0.04*s.nod*motion - (yawn ? 0.18 : 0);
+
+    // Sourcils (un peu de relief quand il parle).
+    const talkBrow = R.talking ? Math.abs(Math.sin(t*6))*0.015*motion : 0;
+    p.brows[0].position.y = 0.22 + s.browY + talkBrow;
+    p.brows[1].position.y = 0.22 + s.browY + s.browAsym + talkBrow;
     p.brows[0].rotation.z = -s.browTilt; p.brows[1].rotation.z = s.browTilt;
-    if(R.mood === "suspicious") p.brows[1].position.y += 0.06;
-    const blink = (t % 3.7) < 0.12 ? 0.1 : 1;
-    p.eyes.forEach(e => e.scale.y = Math.max(0.1, s.squint * blink));
-    p.mouth.scale.y = R.talking ? 1 + Math.abs(Math.sin(t*18))*2.6 : (R.mood==="amused"||R.mood==="impressed" ? 1.6 : 1);
-    p.mouth.scale.x = R.mood==="annoyed"||R.mood==="furious" ? 1.3 : 1;
+
+    // Yeux : clignements à intervalles aléatoires, paupières, regard (qui fuit à gauche-droite quand il est méfiant).
+    if(t > R.nextBlink){ R.blinkUntil = t + 0.13; R.nextBlink = t + 2 + Math.random()*4; }
+    const lid = Math.min(1, Math.max(s.lid, t < R.blinkUntil || yawn ? 1 : 0));
+    const lookX = Math.max(-1, Math.min(1, s.lookX + s.dart*(Math.sin(t*2.2) > 0 ? 0.7 : -0.7)*motion));
+    p.eyes.forEach(e => e.scale.setScalar(s.eye));
+    p.lids.forEach(l => l.rotation.x = lerp(-Math.PI/2, Math.PI/2, lid));
+    p.pupils.forEach(pu => { pu.position.x = lookX*0.035; pu.position.y = s.lookY*0.03; });
+
+    // Bouche : forme de l'expression, ou bouche qui bouge quand il parle.
+    const m = p.mouth;
+    let shape = E.mouth, sy = 1, sx = 1;
+    if(R.talking){ shape = "open"; sy = 0.25 + Math.abs(Math.sin(t*16))*(name === "furious" ? 1.1 : 0.75); sx = 0.8; }
+    else if(yawn){ shape = "oh"; sy = 1.7; sx = 1.3; }
+    else if(shape === "open"){ sy = 0.7 + Math.abs(Math.sin(t*14))*0.4*motion; } // éclats de rire
+    for(const n in m.shapes) m.shapes[n].visible = n === shape;
+    m.group.scale.set(sx, sy, 1);
+
     p.headMat.color.copy(p.baseSkin).lerp(new THREE.Color(0xff3b3b), s.flush*0.6);
-    p.arms.forEach(({pivot, s:sd})=>{
-      pivot.rotation.z = sd * lerp(0.15, -0.9, s.armUp);
-      pivot.rotation.x = lerp(0, -1.25, s.armUp);
+    p.blushMat.opacity = s.blush * 0.55;
+    p.vein.visible = s.vein > 0.3;
+    p.vein.scale.setScalar(Math.max(0.01, s.vein) * (1 + Math.sin(t*10)*0.15*motion));
+    p.sweat.visible = s.sweat > 0.3;
+    p.sweat.position.y = 0.15 - ((t*0.12) % 0.2)*motion;
+
+    p.arms.forEach(({pivot, s:sd}) => {
+      const right = sd > 0;
+      pivot.rotation.x = right ? s.aRx : s.aLx;
+      pivot.rotation.z = sd * (right ? s.aRz : s.aLz);
     });
   }
   hand.rotation.z = -t*0.6;
