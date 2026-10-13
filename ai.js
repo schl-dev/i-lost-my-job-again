@@ -75,7 +75,7 @@ class GameAI {
             { role: "user", content: prompt },
           ],
           response_format: { type: "json_object" },
-          temperature: 0.9,
+          temperature: 0.7, // plus bas qu'avant : le recruteur suit la conversation au lieu de partir dans l'absurde
           max_completion_tokens: 400, // largement assez pour une réplique ; Groq compte ce plafond dans le quota par minute
           reasoning_effort: "low",
           include_reasoning: false,

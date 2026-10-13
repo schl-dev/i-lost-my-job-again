@@ -13,7 +13,13 @@ Le dépôt est partagé (d'autres personnes y poussent).
 ## Clins d'œil aux animés (demandé par les créateurs)
 
 Les créateurs aiment Naruto, Sword Art Online et Hunter x Hunter, mais ne veulent **aucun problème avec les ayants droit** : seulement des allusions à des idées génériques (ninjas, mondes virtuels à étages, chasseurs/aura). Jamais de nom d'œuvre, de personnage ou de technique affiché ou envoyé à l'IA, ni de design reconnaissable, logo, symbole, musique ou réplique. Les noms d'animés ne figurent que dans les mots-clés détectés dans les réponses du joueur (`ANSWER_FX`), qui ne s'affichent jamais.
-Recruteurs secrets (`SECRETS`) : Sensei Lambin (code `ninja`), Solo (`solo`), Monsieur Atout (`atout`).
+Recruteurs secrets (`SECRETS`) : Sensei Lambin (code `ninja`), Solo (`solo`), Monsieur Atout (`atout`) ; ils remplacent le recruteur de l'entreprise 1 fois sur 10.
+
+## Structure du jeu (v2.0, d'après docs/game-design.md)
+
+Boucle : offres d'emploi → salle d'attente (carnet, CV, observer) → entretien libre → verdict (embauché / refusé / second entretien / dehors) → progression (argent, CV, réputation, jobs perdus). Tout est dans `index.html` : `ENTREPRISES` (5 entreprises, seuils, poids des critères, thème de couleurs), `RECRUTEURS` (un par entreprise, clé = id), `CRIT` (4 critères cachés), profil `P` (localStorage `ilmj-profil`), état `S`. Le prompt de l'IA (`baseRules`, `aiTurn`) envoie le vrai CV et demande un JSON avec un delta par critère ; `applyDeltas` accepte encore l'ancien format à un seul `delta`. Les 4 critères ne sont révélés qu'au débrief de fin. Le recruteur doit parler comme un humain et réagir au contenu précis de la réponse (pas d'absurde gratuit).
+
+Rendu : matériaux lisses (`MeshStandardMaterial`, sRGB + ACES), couleurs passées par `col()` ; `applyTheme(entreprise)` recolore la pièce et l'enseigne. Les personnages sont des mascottes originales (grosse tête ronde, grands yeux) : ne pas reprendre de design existant.
 
 ## Notes
 

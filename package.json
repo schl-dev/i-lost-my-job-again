@@ -1,8 +1,8 @@
 {
   "name": "i-lost-my-job-again",
   "productName": "I Lost My Job (Again)",
-  "version": "1.8.0",
-  "description": "Jeu d'entretien d'embauche comique : un recruteur 3D juge tes réponses, et tu finis toujours par perdre le job.",
+  "version": "2.0.0",
+  "description": "Jeu narratif d'entretien d'embauche : 5 entreprises, des recruteurs IA, un carnet, un CV qui progresse… et tu finis toujours par perdre le job.",
   "main": "main.js",
   "private": true,
   "scripts": {
