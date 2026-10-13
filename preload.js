@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("desktop", {
   aiJson: prompt => ipcRenderer.invoke("ai:json", prompt),
+  transcribe: (audio, mime) => ipcRenderer.invoke("ai:transcribe", audio, mime),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   addKeys: text => ipcRenderer.invoke("keys:add", text),
   removeKey: id => ipcRenderer.invoke("keys:remove", id),

@@ -6,7 +6,7 @@
 
 const BASE_URL = (process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/+$/, "");
 const TIMEOUT_MS = 20000;
-const MAX_ATTEMPTS = 6; // appels réseau max par réponse du recruteur
+const MAX_ATTEMPTS = 6; // appels réseau max par requête
 
 // Ordre de préférence quand le modèle choisi n'est pas disponible ou est limité.
 const PREFERRED_MODELS = [
@@ -15,6 +15,15 @@ const PREFERRED_MODELS = [
   "openai/gpt-oss-20b",
   "llama-3.1-8b-instant",
 ];
+// Transcription du micro : le plus rapide d'abord, le plus précis en secours.
+const WHISPER_MODELS = ["whisper-large-v3-turbo", "whisper-large-v3"];
+// Phrases que Whisper invente parfois sur du silence ou du bruit (sous-titres de vidéos).
+const HALLUCINATION = /[^.!?]*(sous-titr|amara\.org|merci d'avoir regardé|abonnez-vous)[^.!?]*[.!?]?/gi;
+
+function cleanTranscript(text) {
+  return String(text || "").replace(HALLUCINATION, "").replace(/\s+/g, " ").trim();
+}
+
 // Modèles listés par /models qui ne sont pas des modèles de chat.
 const NON_CHAT = /whisper|tts|orpheus|playai|guard|compound|distil/i;
 
@@ -48,55 +57,30 @@ class GroqPool {
     this.cooldown.set(keyId + "|" + model, Date.now() + Math.max(1000, ms));
   }
 
-  modelChain(selected) {
-    const chain = [selected, ...PREFERRED_MODELS].filter(Boolean);
-    return [...new Set(chain)].filter(m => !this.deadModels.has(m));
-  }
-
-  async call(key, body) {
-    return fetch(BASE_URL + "/chat/completions", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-  }
-
   /**
-   * Envoie le prompt et renvoie l'objet JSON produit par le modèle.
+   * Essaie chaque (modèle, clé) dans l'ordre de rotation jusqu'à obtenir une réponse exploitable.
+   * send(key, model) -> Promise<Response> ; read(res) -> {data} ou {retry:{code}} (essayer la clé/le modèle suivant).
    * Renvoie {data, model, keyLabel} ou {error:{code, message, retryAt?}}.
    */
-  async json(prompt, selectedModel) {
+  async rotate(models, send, read) {
     const keys = this.getKeys();
     if (!keys.length) return { error: { code: "no_key" } };
 
     const start = this.next++ % keys.length;
     const order = keys.map((_, i) => keys[(start + i) % keys.length]);
-    let soonest = Infinity, lastErr = null, badJson = 0, attempts = 0;
+    let soonest = Infinity, lastErr = null, badOutput = 0, attempts = 0;
 
     models:
-    for (const model of this.modelChain(selectedModel)) {
+    for (const model of [...new Set(models)].filter(m => m && !this.deadModels.has(m))) {
       for (const k of order) {
         if (k.invalid) continue;
         const paused = this.pausedUntil(k.id, model);
         if (paused) { soonest = Math.min(soonest, paused); continue; }
 
-        const body = {
-          model,
-          messages: [
-            { role: "system", content: "Tu réponds toujours avec un seul objet JSON valide, sans aucun texte autour." },
-            { role: "user", content: prompt },
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0.9,
-          max_completion_tokens: 1200,
-        };
-        if (model.startsWith("openai/gpt-oss")) { body.reasoning_effort = "low"; body.include_reasoning = false; }
-
         if (++attempts > MAX_ATTEMPTS) break models;
         let res;
         try {
-          res = await this.call(k.key, body);
+          res = await send(k.key, model);
         } catch (e) {
           if (e && e.name === "TimeoutError") { lastErr = { code: "timeout" }; continue; }
           return { error: { code: "network", message: String(e && e.message || e) } };
@@ -109,16 +93,14 @@ class GroqPool {
         else if (remTok !== null && Number(remTok) < 300) this.pause(k.id, model, parseDuration(res.headers.get("x-ratelimit-reset-tokens")) || 10000);
 
         if (res.ok) {
-          const out = await res.json().catch(() => null);
-          const text = out && out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content;
-          try {
+          const r = await read(res);
+          if (r.data !== undefined) {
             this.lastUsed = { model, keyLabel: k.label };
-            return { data: JSON.parse(text), model, keyLabel: k.label };
-          } catch {
-            lastErr = { code: "bad_json" };
-            if (++badJson >= 2) return { error: lastErr };
-            continue;
+            return { data: r.data, model, keyLabel: k.label };
           }
+          lastErr = r.retry;
+          if (++badOutput >= 2) return { error: lastErr };
+          continue;
         }
 
         const err = await res.json().catch(() => ({}));
@@ -147,7 +129,7 @@ class GroqPool {
         }
         if (code === "json_validate_failed") {
           lastErr = { code: "bad_json", message };
-          if (++badJson >= 2) return { error: lastErr };
+          if (++badOutput >= 2) return { error: lastErr };
           continue;
         }
         if (res.status >= 500) { lastErr = { code: "server", message }; continue; }
@@ -158,6 +140,60 @@ class GroqPool {
     if (!keys.some(k => !k.invalid)) return { error: { code: "bad_key", message: "Toutes les clés ont été refusées par Groq." } };
     if (soonest !== Infinity) return { error: { code: "rate_limited", retryAt: soonest } };
     return { error: lastErr || { code: "unknown" } };
+  }
+
+  /** Envoie le prompt au recruteur et renvoie l'objet JSON qu'il produit. */
+  json(prompt, selectedModel) {
+    return this.rotate([selectedModel, ...PREFERRED_MODELS], (key, model) => {
+      const body = {
+        model,
+        messages: [
+          { role: "system", content: "Tu réponds toujours avec un seul objet JSON valide, sans aucun texte autour." },
+          { role: "user", content: prompt },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.9,
+        max_completion_tokens: 1200,
+      };
+      if (model.startsWith("openai/gpt-oss")) { body.reasoning_effort = "low"; body.include_reasoning = false; }
+      return fetch(BASE_URL + "/chat/completions", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    }, async res => {
+      const out = await res.json().catch(() => null);
+      const text = out && out.choices && out.choices[0] && out.choices[0].message && out.choices[0].message.content;
+      try { return { data: JSON.parse(text) }; } catch { return { retry: { code: "bad_json" } }; }
+    });
+  }
+
+  /** Transcrit la réponse dictée au micro (Whisper sur Groq). */
+  transcribe(audio, mime) {
+    const ext = /ogg/.test(mime) ? "ogg" : /mp4|m4a/.test(mime) ? "m4a" : /wav/.test(mime) ? "wav" : "webm";
+    return this.rotate(WHISPER_MODELS, (key, model) => {
+      const form = new FormData();
+      form.append("file", new Blob([audio], { type: mime || "audio/webm" }), "reponse." + ext);
+      form.append("model", model);
+      form.append("language", "fr");
+      form.append("response_format", "verbose_json");
+      form.append("temperature", "0");
+      return fetch(BASE_URL + "/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + key },
+        body: form,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    }, async res => {
+      const out = await res.json().catch(() => null);
+      if (!out) return { retry: { code: "server" } };
+      // Ignore les passages que Whisper juge silencieux (mêmes seuils que Whisper par défaut).
+      const text = Array.isArray(out.segments)
+        ? out.segments.filter(s => !(s.no_speech_prob > 0.6 && s.avg_logprob < -1)).map(s => s.text).join("")
+        : out.text || "";
+      return { data: cleanTranscript(text) };
+    });
   }
 
   /** Vérifie une clé sans consommer de tokens (liste des modèles). */
@@ -189,4 +225,4 @@ class GroqPool {
   }
 }
 
-module.exports = { GroqPool, PREFERRED_MODELS, parseDuration };
+module.exports = { GroqPool, PREFERRED_MODELS, parseDuration, cleanTranscript };

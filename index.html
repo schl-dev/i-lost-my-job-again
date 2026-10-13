@@ -90,6 +90,18 @@ textarea::placeholder{color:var(--muted)}
 .small{font-size:.85rem;color:var(--muted);margin-top:14px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
+/* Micro */
+.mic{flex:none;width:42px;height:42px;margin-bottom:1px;border:3px solid var(--ink);border-radius:50%;background:var(--paper);
+  color:var(--paper-ink);font:inherit;font-size:1.15rem;line-height:1;padding:0;cursor:pointer;display:none;
+  align-items:center;justify-content:center;box-shadow:0 3px 0 var(--ink);transition:transform .08s,box-shadow .12s}
+.is-desktop .mic{display:inline-flex}
+.mic:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.mic:disabled{opacity:.45;cursor:default;transform:none}
+.mic:focus-visible{outline:3px solid var(--coral);outline-offset:2px}
+.mic[data-state=rec]{background:var(--coral);color:#fff;
+  box-shadow:0 3px 0 var(--ink),0 0 0 calc(4px + var(--lvl,0) * 12px) rgba(255,111,145,.35)}
+.mic[data-state=busy]{animation:b 1s infinite}
+
 /* Musique */
 .hud .mus{flex:none;width:52px;padding:0;font:inherit;font-size:1.35rem;color:var(--paper-ink);cursor:pointer}
 .hud .mus:focus-visible{outline:3px solid var(--coral);outline-offset:2px}
@@ -147,6 +159,7 @@ textarea::placeholder{color:var(--muted)}
   <div class="spacer"></div>
   <form class="card input" id="form" autocomplete="off">
     <textarea id="answer" rows="1" maxlength="280" placeholder="Ta réponse…" aria-label="Ta réponse au recruteur" disabled></textarea>
+    <button class="mic" id="mic" type="button" aria-label="Répondre au micro" aria-pressed="false" disabled>🎤</button>
     <span class="count" id="count">280</span>
     <button class="btn" id="send" type="submit" disabled>Répondre</button>
   </form>
@@ -210,6 +223,10 @@ textarea::placeholder{color:var(--muted)}
     <h3><label for="fx">Volume de la voix du recruteur</label></h3>
     <input type="range" id="fx" min="0" max="100" step="5">
     <p>Touche <b>M</b> pour couper ou remettre tout le son.</p>
+
+    <h3>Micro</h3>
+    <p>Clique sur 🎤 dans la barre de réponse et parle : l'enregistrement s'arrête tout seul quand tu te tais. La transcription utilise aussi tes clés Groq (Whisper).</p>
+    <label class="check" style="margin-top:6px"><input type="checkbox" id="voiceAuto"> Envoyer ma réponse dès que j'ai fini de parler</label>
 
     <label class="check"><input type="checkbox" id="fs"> Plein écran (F11)</label>
 
@@ -480,7 +497,7 @@ const MUSIC = (() => {
   const AC = window.AudioContext || window.webkitAudioContext;
   const pref = {vol:0.6, fx:0.7, muted:false};
   try{ Object.assign(pref, JSON.parse(localStorage.getItem("ilmj-music") || "{}")); }catch(e){}
-  let ctx = null, master = null, musicGain = null, fxGain = null, eng = null, mode = "menu", tension = 50;
+  let ctx = null, master = null, musicGain = null, fxGain = null, eng = null, mode = "menu", tension = 50, ducked = false;
   const audible = () => !pref.muted && (pref.vol > 0 || pref.fx > 0);
 
   function sync(){
@@ -491,7 +508,7 @@ const MUSIC = (() => {
       b.setAttribute("aria-label", (audible() ? "Couper" : "Remettre") + " le son (M)");
     });
     if(!ctx) return;
-    master.gain.setTargetAtTime(pref.muted ? 0 : 1, ctx.currentTime, 0.05);
+    master.gain.setTargetAtTime(pref.muted ? 0 : ducked ? 0.12 : 1, ctx.currentTime, 0.05);
     musicGain.gain.setTargetAtTime(pref.vol*0.6, ctx.currentTime, 0.05);
     fxGain.gain.setTargetAtTime(pref.fx*0.6, ctx.currentTime, 0.05);
     const run = audible() && !document.hidden;
@@ -522,6 +539,7 @@ const MUSIC = (() => {
     setMode(m){ mode = m; if(eng) eng.setMode(m); },
     setTension(s){ tension = s; if(eng) eng.setTension(s); },
     jingle(kind){ if(eng && audible() && pref.vol > 0) eng.jingle(kind); },
+    duck(on){ ducked = on; sync(); },
     talk(ch, voice, mood){
       if(!ctx || ctx.state !== "running" || pref.muted || !pref.fx || !voice) return;
       const st = (ch in VOWEL_PITCH ? VOWEL_PITCH[ch] : ch.charCodeAt(0) % 3 - 1)
@@ -586,6 +604,8 @@ function setScore(v, delta){
 }
 function setInput(on){
   $("answer").disabled = !on; $("send").disabled = !on || !$("answer").value.trim();
+  if(!on) MIC.cancel();
+  MIC.refresh();
   if(on) $("answer").focus({preventScroll:true});
 }
 function note(t){ $("note").textContent = t || ""; }
@@ -735,6 +755,7 @@ function renderSettings(st){
   $("fs").checked = st.fullscreen;
   $("vol").value = Math.round(MUSIC.volume * 100);
   $("fx").value = Math.round(MUSIC.fx * 100);
+  $("voiceAuto").checked = voiceAutoSend();
 }
 async function refreshAiStatus(){
   const st = await DESKTOP.getSettings();
@@ -786,12 +807,112 @@ if(DESKTOP){
   $("getKey").onclick = () => DESKTOP.openKeyPage();
   $("model").onchange = async e => { renderSettings(await DESKTOP.setModel(e.target.value)); $("keyMsg").textContent = "Modèle enregistré."; };
   $("fs").onchange = e => DESKTOP.setFullscreen(e.target.checked);
+  $("voiceAuto").onchange = e => { try{ localStorage.setItem("ilmj-voice-auto", e.target.checked ? "1" : "0"); }catch(err){} };
   $("vol").oninput = e => MUSIC.setVolume(e.target.value / 100);
   $("fx").oninput = e => { MUSIC.setFx(e.target.value / 100); MUSIC.talk("a", (S.rec || RECRUTEURS[0]).voice, "neutral"); };
   DESKTOP.onFullscreen(on => { $("fs").checked = on; });
   refreshAiStatus();
   MUSIC.start(); // l'appli Windows autorise le son sans clic : musique dès l'écran titre
 }
+
+/* ============ Micro : répondre à voix haute (transcription Whisper via Groq) ============ */
+function voiceAutoSend(){ try{ return localStorage.getItem("ilmj-voice-auto") !== "0"; }catch(e){ return true; } }
+
+function createMic(){
+  const btn = $("mic");
+  let state = "idle", stream = null, rec = null, chunks = [], spoke = false, discard = false;
+
+  function setState(st){
+    state = st; btn.dataset.state = st;
+    btn.textContent = st === "rec" ? "■" : st === "busy" ? "…" : "🎤";
+    btn.setAttribute("aria-label", st === "rec" ? "Arrêter l'enregistrement" : st === "busy" ? "Transcription en cours" : "Répondre au micro");
+    btn.setAttribute("aria-pressed", String(st === "rec"));
+    $("answer").placeholder = st === "rec" ? "Je t'écoute… (■ pour arrêter)" : st === "busy" ? "Transcription…" : "Ta réponse… ou 🎤 pour parler";
+    MUSIC.duck(st === "rec");
+    refresh();
+  }
+  function refresh(){ btn.disabled = state === "busy" || state === "starting" || (state === "idle" && $("answer").disabled); }
+
+  async function start(){
+    if(state !== "idle" || $("answer").disabled) return;
+    state = "starting"; refresh();
+    if(await aiAvailability() !== "ok"){ setState("idle"); note("Le micro utilise Groq : ajoute une clé dans ⚙ Paramètres."); return; }
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+    }catch(e){
+      setState("idle");
+      note(e && e.name === "NotFoundError" ? "Aucun micro détecté sur ce PC."
+        : "Micro inaccessible : autorise-le dans Paramètres Windows › Confidentialité › Microphone.");
+      return;
+    }
+    if($("answer").disabled){ stream.getTracks().forEach(t => t.stop()); setState("idle"); return; }
+    chunks = []; spoke = false; discard = false;
+    const type = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find(t => MediaRecorder.isTypeSupported(t));
+    rec = new MediaRecorder(stream, type ? {mimeType:type} : undefined);
+    rec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+    rec.onstop = finish;
+    rec.start(250);
+    setState("rec"); note("");
+    listen();
+  }
+  function stop(){ if(rec && rec.state !== "inactive") rec.stop(); }
+
+  // Arrêt automatique : 1,5 s de silence après avoir parlé, 8 s sans rien entendre, 30 s au maximum.
+  function listen(){
+    const actx = new AudioContext(), an = actx.createAnalyser();
+    an.fftSize = 1024;
+    actx.createMediaStreamSource(stream).connect(an);
+    const buf = new Float32Array(an.fftSize), t0 = performance.now();
+    let floor = 0.004, loud = 0, last = t0;
+    const iv = setInterval(() => {
+      const now = performance.now();
+      if(state !== "rec"){ clearInterval(iv); actx.close(); btn.style.removeProperty("--lvl"); return; }
+      an.getFloatTimeDomainData(buf);
+      let sum = 0; for(const v of buf) sum += v*v;
+      const rms = Math.sqrt(sum / buf.length);
+      if(now - t0 < 400) floor = Math.min(0.02, Math.max(floor, rms)); // bruit de fond de la pièce
+      if(rms > Math.max(0.015, floor * 2.5)){ if(++loud >= 3) spoke = true; last = now; } else loud = 0;
+      btn.style.setProperty("--lvl", Math.min(1, rms * 10).toFixed(2));
+      if((spoke && now - last > 1500) || (!spoke && now - t0 > 8000) || now - t0 > 30000) stop();
+    }, 60);
+  }
+
+  async function finish(){
+    stream.getTracks().forEach(t => t.stop());
+    if(discard || $("answer").disabled){ discard = false; setState("idle"); return; }
+    if(!spoke){ setState("idle"); note("Je n'ai rien entendu. Rapproche-toi du micro et réessaie."); return; }
+    setState("busy");
+    const blob = new Blob(chunks, {type: rec.mimeType || "audio/webm"});
+    let r;
+    try{ r = await DESKTOP.transcribe(new Uint8Array(await blob.arrayBuffer()), blob.type); }
+    catch(e){ r = {error:{code:"unknown"}}; }
+    setState("idle");
+    if(r.error) return micError(r.error);
+    const a = $("answer");
+    if(a.disabled) return;
+    if(!r.data){ note("Je n'ai pas compris. Réessaie ?"); return; }
+    const text = ((a.value.trim() ? a.value.trim() + " " : "") + r.data).slice(0, 280);
+    a.value = text; a.dispatchEvent(new Event("input"));
+    if(voiceAutoSend()) setTimeout(() => { if(a.value === text && !a.disabled && !S.busy) submitAnswer(); }, 800);
+    else a.focus();
+  }
+
+  function micError(e){
+    if(e.code === "rate_limited"){
+      const sec = e.retryAt ? Math.max(1, Math.ceil((e.retryAt - Date.now())/1000)) : 0;
+      note(sec ? `Transcription : toutes tes clés Groq sont à leur limite. Réessaie dans ${sec} s.` : "Transcription : Groq est débordé, réessaie.");
+    }
+    else if(e.code === "bad_key") note("Groq a refusé tes clés : vérifie-les dans ⚙ Paramètres.");
+    else if(e.code === "no_key") note("Le micro utilise Groq : ajoute une clé dans ⚙ Paramètres.");
+    else if(e.code === "network") note("Pas de connexion à Groq : écris ta réponse au clavier.");
+    else note("La transcription a échoué. Réessaie ou écris ta réponse.");
+  }
+
+  btn.onclick = () => state === "rec" ? stop() : start();
+  setState("idle");
+  return { refresh, cancel(){ if(state === "rec"){ discard = true; stop(); } } };
+}
+const MIC = DESKTOP ? createMic() : { refresh(){}, cancel(){} };
 
 document.querySelectorAll(".mus").forEach(b => b.onclick = () => MUSIC.toggle());
 addEventListener("keydown", e => {

@@ -24,6 +24,15 @@ Le recruteur est joué par un modèle de l'[API Groq](https://console.groq.com/k
 
 Les variables d'environnement `GROQ_API_KEYS` (liste séparée par des virgules) ou `GROQ_API_KEY` sont aussi prises en compte.
 
+## Répondre au micro
+
+Clique sur 🎤 dans la barre de réponse et parle : l'enregistrement s'arrête tout seul après ~1,5 s de silence, ta voix est transcrite par **Whisper sur Groq** (mêmes clés, même rotation que le recruteur) et la réponse est envoyée automatiquement. Tu peux désactiver l'envoi automatique dans ⚙ Paramètres pour relire avant d'envoyer.
+
+- La musique baisse pendant que tu parles pour que le micro ne l'entende pas.
+- Si rien n'est entendu (8 s), rien n'est envoyé ; les phrases que Whisper invente parfois sur du silence (« Sous-titres réalisés par… ») sont filtrées.
+- Si Windows bloque le micro : Paramètres Windows › Confidentialité et sécurité › Microphone › autoriser les applications de bureau.
+- Groq facture au minimum 10 s d'audio par transcription.
+
 ## Musique et sons
 
 La musique de fond (bossa « musique d'ascenseur ») est générée en direct par le jeu (Web Audio), sans fichier audio : elle marche hors-ligne et réagit à la partie.

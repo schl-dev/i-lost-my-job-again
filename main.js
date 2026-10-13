@@ -1,5 +1,5 @@
 // Process principal Electron : fenêtre du jeu, réglages, et appels à l'API Groq.
-const { app, BrowserWindow, ipcMain, safeStorage, protocol, net, shell, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, safeStorage, protocol, net, shell, Menu, session } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
@@ -85,6 +85,12 @@ function publicSettings() {
 
 /* ============ IPC ============ */
 ipcMain.handle("ai:json", (_e, prompt) => pool.json(String(prompt || ""), settings.model));
+
+// Réponse dictée au micro : audio enregistré par la page -> texte (Whisper sur Groq).
+ipcMain.handle("ai:transcribe", (_e, audio, mime) => {
+  if (!audio || !audio.byteLength || audio.byteLength > 20 * 1024 * 1024) return { error: { code: "bad_audio" } };
+  return pool.transcribe(Buffer.from(audio), String(mime || "audio/webm"));
+});
 
 ipcMain.handle("settings:get", () => publicSettings());
 
@@ -201,6 +207,13 @@ app.whenReady().then(() => {
   if (!gotLock) return;
   loadSettings();
   Menu.setApplicationMenu(null);
+
+  // Seul le jeu (app://) peut demander le micro, et uniquement l'audio (pas la caméra).
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback, details) => {
+    const audioOnly = (details.mediaTypes || []).every(t => t === "audio");
+    callback(permission === "media" && audioOnly && String(details.requestingUrl || "").startsWith("app://"));
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, _permission, origin) => String(origin || "").startsWith("app://"));
 
   // Sert les fichiers du jeu sur app://game/ avec une politique de sécurité stricte.
   protocol.handle("app", async req => {
