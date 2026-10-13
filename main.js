@@ -4,6 +4,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
 const { GameAI } = require("./ai");
+const { autoUpdater } = require("electron-updater");
 
 // Version installée : refuse les options de débogage qui permettraient d'espionner le jeu
 // (et de lire la clé du serveur IA en mémoire).
@@ -34,6 +35,48 @@ function loadToken() {
   try { return require("./secret.js"); } catch { return null; }
 }
 const ai = new GameAI({ baseUrl: AI_URL, token: loadToken() });
+
+/* ============ Mises à jour (releases GitHub) ============ */
+// Au lancement, la version installée regarde s'il y a une nouvelle release sur GitHub et la propose au joueur.
+// En développement, ILMJ_UPDATE_URL pointe vers un faux serveur de mises à jour et ILMJ_UPDATE_DRY_RUN évite d'installer.
+const UPDATE_TEST = !app.isPackaged && process.env.ILMJ_UPDATE_URL;
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
+if (UPDATE_TEST) {
+  autoUpdater.forceDevUpdateConfig = true;
+  autoUpdater.setFeedURL({ provider: "generic", url: process.env.ILMJ_UPDATE_URL });
+}
+let updateFound = false;
+const sendUpdate = (type, data = {}) => { if (win) win.webContents.send("update:event", { type, ...data }); };
+
+// Notes de version GitHub (HTML) -> texte simple pour la fenêtre de mise à jour.
+function plainNotes(notes) {
+  const text = Array.isArray(notes) ? notes.map(n => n.note || "").join("\n") : String(notes || "");
+  return text.replace(/<\/(p|li|h\d)>|<br\s*\/?>/gi, "\n").replace(/<li>/gi, "• ").replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\n\s*\n+/g, "\n").trim().slice(0, 700);
+}
+
+autoUpdater.on("update-available", info => {
+  updateFound = true;
+  sendUpdate("available", { version: info.version, current: app.getVersion(), notes: plainNotes(info.releaseNotes) });
+});
+autoUpdater.on("download-progress", p => sendUpdate("progress", { percent: Math.floor(p.percent) }));
+autoUpdater.on("update-downloaded", () => {
+  sendUpdate("installing");
+  if (process.env.ILMJ_UPDATE_DRY_RUN && !app.isPackaged) return;
+  // Installation silencieuse puis relance automatique du jeu.
+  setTimeout(() => autoUpdater.quitAndInstall(true, true), 1200);
+});
+autoUpdater.on("error", err => sendUpdate("error", { message: String((err && err.message) || err).slice(0, 200) }));
+
+function checkForUpdates() {
+  if (!app.isPackaged && !UPDATE_TEST) return;
+  autoUpdater.checkForUpdates().catch(() => {}); // hors-ligne : on joue simplement avec la version installée
+}
+ipcMain.handle("update:download", () => {
+  if (updateFound) autoUpdater.downloadUpdate().catch(() => {});
+});
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
@@ -152,6 +195,8 @@ function createWindow() {
   });
   win.on("closed", () => { win = null; });
 
+  // La page doit être prête à afficher la fenêtre de mise à jour avant qu'on cherche une nouvelle version.
+  win.webContents.once("did-finish-load", () => setTimeout(checkForUpdates, 1500));
   win.loadURL("app://game/index.html");
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "i-lost-my-job-again",
   "productName": "I Lost My Job (Again)",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Jeu d'entretien d'embauche comique : un recruteur 3D juge tes réponses, et tu finis toujours par perdre le job.",
   "main": "main.js",
   "private": true,
@@ -10,10 +10,12 @@
     "dev": "electron . --dev",
     "vendor": "node scripts/vendor.js",
     "icon": "electron scripts/make-icon.js",
-    "dist": "electron-builder --win --x64",
+    "dist": "electron-builder --win --x64 --publish never",
     "prestart": "node scripts/embed-secret.js --optional",
     "predev": "node scripts/embed-secret.js --optional",
-    "predist": "node scripts/embed-secret.js"
+    "predist": "node scripts/embed-secret.js",
+    "installeur": "node scripts/build-installeur.js",
+    "postdist": "node scripts/build-installeur.js"
   },
   "license": "UNLICENSED",
   "devDependencies": {
@@ -46,26 +48,18 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "icon": "build/icon.png"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "oneClick": true,
+      "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "I Lost My Job (Again)",
-      "artifactName": "ILostMyJobAgain-Setup-${version}.${ext}"
-    },
-    "portable": {
-      "artifactName": "ILostMyJobAgain-Portable-${version}.${ext}"
+      "runAfterFinish": true,
+      "artifactName": "ILostMyJobAgain-Setup.${ext}"
     },
     "electronFuses": {
       "runAsNode": false,
@@ -75,6 +69,20 @@
       "enableEmbeddedAsarIntegrityValidation": true,
       "onlyLoadAppFromAsar": true,
       "grantFileProtocolExtraPrivileges": false
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "schl-dev",
+        "repo": "i-lost-my-job-again"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/schl-dev/i-lost-my-job-again.git"
   }
 }

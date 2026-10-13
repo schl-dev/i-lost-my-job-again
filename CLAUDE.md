@@ -7,7 +7,8 @@ Jeu Windows (Electron) : `index.html` (jeu three.js), `main.js` (process princip
 Le dépôt est partagé (d'autres personnes y poussent).
 - **Avant toute modification** : `git pull --rebase` pour récupérer les mises à jour éventuelles.
 - **Après chaque modification** : commit, puis `git pull --rebase` à nouveau (vérifier qu'il n'y a rien eu entre-temps, résoudre les conflits), puis `git push` sur `main`.
-- Nouvelle fonctionnalité → version x.Y.0, correction → x.y.Z dans `package.json`, puis `npm run dist` et `gh release create vX.Y.Z` avec `dist/ILostMyJobAgain-Setup-X.Y.Z.exe` et `dist/ILostMyJobAgain-Portable-X.Y.Z.exe`, notes en français.
+- Nouvelle fonctionnalité → version x.Y.0, correction → x.y.Z dans `package.json`, puis `npm run dist` et `gh release create vX.Y.Z dist/ILostMyJobAgain-Setup.exe dist/ILostMyJobAgain-Setup.exe.blockmap dist/latest.yml dist/ILostMyJobAgain-Installeur.exe`, notes en français. Les noms de fichiers sont fixes (sans numéro de version) : l'installeur à envoyer télécharge `releases/latest/download/ILostMyJobAgain-Setup.exe`, et le jeu installé se met à jour grâce à `latest.yml` (electron-updater). Release publiée (pas brouillon/pré-release), sinon personne ne la reçoit.
+- Le dépôt est **public** : rien de secret ne doit y entrer.
 
 ## Notes
 

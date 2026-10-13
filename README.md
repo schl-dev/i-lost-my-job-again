@@ -4,10 +4,11 @@ Jeu d'entretien d'embauche comique : un recruteur 3D (three.js) juge tes répons
 
 ## Jouer (Windows)
 
-Télécharge la dernière version dans les [Releases](https://github.com/schl-dev/i-lost-my-job-again/releases) :
+Pour installer le jeu (ou le faire tester), un seul fichier suffit : **[ILostMyJobAgain-Installeur.exe](https://github.com/schl-dev/i-lost-my-job-again/releases/latest/download/ILostMyJobAgain-Installeur.exe)** (≈ 75 Ko). Il télécharge la **dernière version** publiée sur GitHub, l'installe (raccourcis Bureau et menu Démarrer) et lance le jeu. Inutile de le renvoyer quand le jeu évolue.
 
-- `ILostMyJobAgain-Setup-X.Y.Z.exe` : installateur (raccourcis Bureau + menu Démarrer) ;
-- `ILostMyJobAgain-Portable-X.Y.Z.exe` : version portable, sans installation.
+**Mises à jour automatiques** : à chaque lancement, le jeu regarde s'il y a une nouvelle version sur GitHub. Si oui, il propose « Mettre à jour » ou « Plus tard » ; la mise à jour se télécharge, s'installe et le jeu se relance tout seul.
+
+L'installation complète est aussi disponible directement : [ILostMyJobAgain-Setup.exe](https://github.com/schl-dev/i-lost-my-job-again/releases/latest/download/ILostMyJobAgain-Setup.exe) (≈ 110 Mo).
 
 Le jeu n'est pas signé : au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » → *Informations complémentaires* → *Exécuter quand même*.
 
@@ -61,7 +62,8 @@ Avant de construire : mets la clé de sortie du jeu dans `secret/ai-key.txt` (ce
 npm install
 npm start          # lance le jeu
 npm run dev        # avec les DevTools
-npm run dist       # construit dist/ILostMyJobAgain-Setup-X.Y.Z.exe et la version portable (exige secret/ai-key.txt)
+npm run dist       # construit dist/ILostMyJobAgain-Setup.exe, latest.yml, le .blockmap et l'installeur (exige secret/ai-key.txt)
+npm run installeur # recompile seulement dist/ILostMyJobAgain-Installeur.exe (installeur/Installeur.cs, csc de .NET Framework 4)
 npm run vendor     # recopie three.js r128 et la police Baloo 2 dans vendor/
 npm run icon       # régénère build/icon.png
 ```
@@ -74,6 +76,9 @@ Structure :
 - `ai.js` : appels au serveur IA du jeu (recruteur et transcription), modèle imposé.
 - `scripts/embed-secret.js` : chiffre la clé dans `secret.js` avant chaque build.
 - `serveur-ia/prompt-impose.txt` : prompt à mettre dans le verrou d'usage de la clé du jeu sur GroqProxy.
+- `installeur/` : le petit installeur à envoyer (télécharge `releases/latest/download/ILostMyJobAgain-Setup.exe`).
+
+Publier une version : monter la version dans `package.json`, `npm run dist`, puis créer la release GitHub (publiée, ni brouillon ni pré-release) avec **les quatre fichiers** `dist/ILostMyJobAgain-Setup.exe`, `dist/ILostMyJobAgain-Setup.exe.blockmap`, `dist/latest.yml` et `dist/ILostMyJobAgain-Installeur.exe`. Sans `latest.yml`, les jeux installés ne voient pas la mise à jour.
 - `vendor/` : three.js et la police, embarqués pour jouer sans Internet.
 
 Pour tester sans le vrai serveur (développement uniquement) : `ILMJ_AI_URL` et `ILMJ_AI_KEY` pointent vers un faux serveur local ; ces variables sont ignorées par la version installée.

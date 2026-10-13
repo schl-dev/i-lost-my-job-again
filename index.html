@@ -122,6 +122,13 @@ textarea::placeholder{color:var(--muted)}
 .ai-status.on{color:#1f9e6e}
 .ver{font-size:.75rem;color:var(--muted);margin:8px 0 0;opacity:.8}
 #settings{z-index:6}
+#update{z-index:7}
+.upd h2{margin:0 0 6px;font-size:1.6rem;color:var(--paper-ink)}
+.upd-ver{font-weight:800;margin:0 0 10px;color:var(--paper-ink)}
+.upd-notes{white-space:pre-line;text-align:left;font-size:.9rem;color:var(--muted);max-height:150px;overflow:auto;margin:0 0 12px}
+.upd-notes:empty,.upd [hidden]{display:none!important}
+.upd .bar{margin:8px 0 0}
+.upd-msg{font-weight:700;min-height:1.2em;margin:8px 0 0;color:var(--paper-ink)}
 .settings{max-width:520px;text-align:left;max-height:calc(100vh - 40px);overflow:auto}
 .settings h2{margin:0 0 4px;font-size:1.6rem;color:var(--paper-ink)}
 .settings h3{margin:14px 0 4px;font-size:1.05rem}
@@ -209,6 +216,20 @@ textarea::placeholder{color:var(--muted)}
     <label class="check"><input type="checkbox" id="fs"> Plein écran (F11)</label>
 
     <button class="btn close" id="closeSettings" type="button">Fermer</button>
+  </div>
+</section>
+
+<section class="screen" id="update" hidden>
+  <div class="card panel upd" role="dialog" aria-modal="true" aria-labelledby="updTitle">
+    <h2 id="updTitle">Mise à jour disponible</h2>
+    <p class="upd-ver" id="updVer"></p>
+    <p class="upd-notes" id="updNotes"></p>
+    <div class="bar" id="updBar" hidden><div class="fill" id="updFill" style="width:0%"></div></div>
+    <p class="upd-msg" id="updMsg" aria-live="polite"></p>
+    <div class="row panel-row" id="updBtns">
+      <button class="btn" id="updGo" type="button">Mettre à jour</button>
+      <button class="btn ghost" id="updLater" type="button">Plus tard</button>
+    </div>
   </div>
 </section>
 
@@ -756,6 +777,31 @@ if(DESKTOP){
   $("vol").oninput = e => MUSIC.setVolume(e.target.value / 100);
   $("fx").oninput = e => { MUSIC.setFx(e.target.value / 100); MUSIC.talk("a", (S.rec || RECRUTEURS[0]).voice, "neutral"); };
   DESKTOP.onFullscreen(on => { $("fs").checked = on; });
+
+  // Mise à jour proposée au lancement quand une nouvelle version est publiée sur GitHub.
+  let updating = false;
+  DESKTOP.onUpdate(ev => {
+    if(ev.type === "available"){
+      $("updVer").textContent = `Version ${ev.version} (tu as la ${ev.current})`;
+      $("updNotes").textContent = ev.notes || "";
+      $("updMsg").textContent = ""; $("updBar").hidden = true; $("updBtns").hidden = false;
+      $("update").hidden = false; $("updGo").focus();
+    }
+    else if(ev.type === "progress"){ $("updFill").style.width = ev.percent + "%"; $("updMsg").textContent = `Téléchargement… ${ev.percent} %`; }
+    else if(ev.type === "installing"){ $("updFill").style.width = "100%"; $("updMsg").textContent = "Installation… le jeu va redémarrer tout seul."; }
+    else if(ev.type === "error" && updating){
+      updating = false;
+      $("updMsg").textContent = "La mise à jour a échoué (connexion ?). Tu peux réessayer ou jouer avec ta version actuelle.";
+      $("updBar").hidden = true; $("updBtns").hidden = false; $("updGo").textContent = "Réessayer";
+    }
+  });
+  $("updGo").onclick = () => {
+    updating = true;
+    $("updBtns").hidden = true; $("updBar").hidden = false; $("updFill").style.width = "0%";
+    $("updMsg").textContent = "Téléchargement…";
+    DESKTOP.downloadUpdate();
+  };
+  $("updLater").onclick = () => { $("update").hidden = true; };
   refreshAiStatus();
   MUSIC.start(); // l'appli Windows autorise le son sans clic : musique dès l'écran titre
 }

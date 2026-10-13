@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld("desktop", {
   setFullscreen: on => ipcRenderer.invoke("win:fullscreen", on),
   quit: () => ipcRenderer.invoke("app:quit"),
   onFullscreen: cb => ipcRenderer.on("win:fullscreen", (_e, on) => cb(on)),
+  onUpdate: cb => ipcRenderer.on("update:event", (_e, ev) => cb(ev)),
+  downloadUpdate: () => ipcRenderer.invoke("update:download"),
 });
