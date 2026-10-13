@@ -156,6 +156,7 @@ function createWindow() {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      autoplayPolicy: "no-user-gesture-required", // musique dès l'écran titre
       devTools: DEV,
     },
   });
