@@ -26,9 +26,12 @@ Les variables d'environnement `GROQ_API_KEYS` (liste séparée par des virgules)
 
 ## Répondre au micro
 
-Clique sur 🎤 dans la barre de réponse et parle : l'enregistrement s'arrête tout seul après ~1,5 s de silence, ta voix est transcrite par **Whisper sur Groq** (mêmes clés, même rotation que le recruteur) et la réponse est envoyée automatiquement. Tu peux désactiver l'envoi automatique dans ⚙ Paramètres pour relire avant d'envoyer.
+Clique sur 🎤 dans la barre de réponse et parle : l'enregistrement s'arrête tout seul après 2,5 s de silence (ou clique sur ■), ta voix est transcrite par **Whisper sur Groq** (`whisper-large-v3`, le plus précis ; mêmes clés, même rotation que le recruteur) et la réponse est envoyée automatiquement. Tu peux désactiver l'envoi automatique dans ⚙ Paramètres pour relire avant d'envoyer.
 
-- La musique baisse pendant que tu parles pour que le micro ne l'entende pas.
+- Ce que tu as dit s'affiche dans la bulle (« Toi : … ») au-dessus de la réaction du recruteur.
+- La musique se coupe pendant que tu parles ; le son du micro est envoyé brut (sans suppression de bruit) pour une meilleure transcription.
+- Réponses jusqu'à 500 caractères (au clavier comme au micro).
+- Les 30 dernières dictées (ce que Whisper a entendu / ce qui a été envoyé) sont notées dans `%APPDATA%\I Lost My Job (Again)\dictees.log`, sur ton PC uniquement.
 - Si rien n'est entendu (8 s), rien n'est envoyé ; les phrases que Whisper invente parfois sur du silence (« Sous-titres réalisés par… ») sont filtrées.
 - Si Windows bloque le micro : Paramètres Windows › Confidentialité et sécurité › Microphone › autoriser les applications de bureau.
 - Groq facture au minimum 10 s d'audio par transcription.

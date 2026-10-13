@@ -87,10 +87,25 @@ function publicSettings() {
 ipcMain.handle("ai:json", (_e, prompt) => pool.json(String(prompt || ""), settings.model));
 
 // Réponse dictée au micro : audio enregistré par la page -> texte (Whisper sur Groq).
-ipcMain.handle("ai:transcribe", (_e, audio, mime) => {
+ipcMain.handle("ai:transcribe", async (_e, audio, mime, seconds) => {
   if (!audio || !audio.byteLength || audio.byteLength > 20 * 1024 * 1024) return { error: { code: "bad_audio" } };
-  return pool.transcribe(Buffer.from(audio), String(mime || "audio/webm"));
+  const r = await pool.transcribe(Buffer.from(audio), String(mime || "audio/webm"));
+  logDictation(r, seconds);
+  return r;
 });
+
+// Journal local des 30 dernières dictées (ce que Whisper a entendu / ce qui a été envoyé), pour vérifier en cas de doute.
+function logDictation(r, seconds) {
+  try {
+    const file = path.join(app.getPath("userData"), "dictees.log");
+    const lines = fs.existsSync(file) ? fs.readFileSync(file, "utf8").split("\n").filter(Boolean).slice(-29) : [];
+    lines.push(JSON.stringify({
+      date: new Date().toISOString(), duree_s: Math.round((seconds || 0) * 10) / 10, modele: r.model || null,
+      entendu: r.data ? r.data.raw : null, envoye: r.data ? r.data.text : null, erreur: r.error ? r.error.code : null,
+    }));
+    fs.writeFileSync(file, lines.join("\n") + "\n");
+  } catch {}
+}
 
 ipcMain.handle("settings:get", () => publicSettings());
 

@@ -48,6 +48,8 @@ body{height:100%;margin:0;background:var(--sky);color:var(--paper-ink);
 .bubble::after{content:"";position:absolute;left:50%;bottom:-14px;width:22px;height:22px;background:var(--hud);
   border-right:3px solid var(--ink);border-bottom:3px solid var(--ink);transform:translateX(-50%) rotate(45deg)}
 .who{font-weight:800;font-size:.9rem;color:var(--muted);margin-bottom:2px}
+.you{font-size:.92rem;font-style:italic;color:var(--muted);margin:0 0 8px;padding-bottom:6px;border-bottom:2px dashed var(--muted)}
+.you b{font-style:normal}
 .q{display:block;font-weight:700;margin-top:6px}
 .dots span{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--paper-ink);margin-right:5px;animation:b 1s infinite}
 .dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
@@ -155,12 +157,12 @@ textarea::placeholder{color:var(--muted)}
     </div>
     <button class="card mus" type="button" aria-label="Couper le son (M)">🔊</button>
   </div>
-  <div class="card bubble" id="bubble" aria-live="polite"><div class="who" id="who"></div><span id="say"></span><span class="q" id="ask"></span></div>
+  <div class="card bubble" id="bubble" aria-live="polite"><div class="you" id="you" hidden></div><div class="who" id="who"></div><span id="say"></span><span class="q" id="ask"></span></div>
   <div class="spacer"></div>
   <form class="card input" id="form" autocomplete="off">
-    <textarea id="answer" rows="1" maxlength="280" placeholder="Ta réponse…" aria-label="Ta réponse au recruteur" disabled></textarea>
+    <textarea id="answer" rows="1" maxlength="500" placeholder="Ta réponse…" aria-label="Ta réponse au recruteur" disabled></textarea>
     <button class="mic" id="mic" type="button" aria-label="Répondre au micro" aria-pressed="false" disabled>🎤</button>
-    <span class="count" id="count">280</span>
+    <span class="count" id="count">500</span>
     <button class="btn" id="send" type="submit" disabled>Répondre</button>
   </form>
   <div class="note" id="note"></div>
@@ -225,7 +227,7 @@ textarea::placeholder{color:var(--muted)}
     <p>Touche <b>M</b> pour couper ou remettre tout le son.</p>
 
     <h3>Micro</h3>
-    <p>Clique sur 🎤 dans la barre de réponse et parle : l'enregistrement s'arrête tout seul quand tu te tais. La transcription utilise aussi tes clés Groq (Whisper).</p>
+    <p>Clique sur 🎤 dans la barre de réponse et parle : l'enregistrement s'arrête tout seul après 2,5 s de silence (ou clique sur ■). La transcription utilise aussi tes clés Groq (Whisper). Ce que tu as dit s'affiche au-dessus de la réponse du recruteur.</p>
     <label class="check" style="margin-top:6px"><input type="checkbox" id="voiceAuto"> Envoyer ma réponse dès que j'ai fini de parler</label>
 
     <label class="check"><input type="checkbox" id="fs"> Plein écran (F11)</label>
@@ -253,6 +255,7 @@ const POSTES = [
 ];
 const MOODS = ["neutral","amused","impressed","annoyed","suspicious","furious"];
 const MAXQ = 5;
+const MAXLEN = 500; // longueur max d'une réponse
 
 /* ============ État ============ */
 const S = {score:50, q:0, history:[], rec:null, job:null, busy:false, offline:false, lost:0};
@@ -508,7 +511,7 @@ const MUSIC = (() => {
       b.setAttribute("aria-label", (audible() ? "Couper" : "Remettre") + " le son (M)");
     });
     if(!ctx) return;
-    master.gain.setTargetAtTime(pref.muted ? 0 : ducked ? 0.12 : 1, ctx.currentTime, 0.05);
+    master.gain.setTargetAtTime(pref.muted || ducked ? 0 : 1, ctx.currentTime, 0.05);
     musicGain.gain.setTargetAtTime(pref.vol*0.6, ctx.currentTime, 0.05);
     fxGain.gain.setTargetAtTime(pref.fx*0.6, ctx.currentTime, 0.05);
     const run = audible() && !document.hidden;
@@ -609,6 +612,10 @@ function setInput(on){
   if(on) $("answer").focus({preventScroll:true});
 }
 function note(t){ $("note").textContent = t || ""; }
+function showYou(t){
+  const y = $("you"); y.hidden = !t; y.textContent = "";
+  if(t){ const b = document.createElement("b"); b.textContent = "Toi : "; y.append(b, "« " + t + " »"); }
+}
 function showLost(){ $("lostCount").textContent = S.lost; $("lostCount2").textContent = S.lost; }
 
 /* ============ Déroulé ============ */
@@ -625,6 +632,7 @@ async function startInterview(){
   $("jobName").textContent = S.job;
   $("qNum").textContent = "0/" + MAXQ;
   $("start").hidden = true; $("end").hidden = true;
+  showYou("");
   buildRecruiter(S.rec);
   CAM.mode = "idle"; setMood("neutral");
   thinking(); setInput(false); note("");
@@ -665,9 +673,10 @@ function handleErr(e){
 }
 
 async function submitAnswer(){
-  const answer = $("answer").value.trim().slice(0,280);
+  const answer = $("answer").value.trim().slice(0,MAXLEN);
   if(!answer || S.busy) return;
   S.busy = true; setInput(false);
+  showYou(answer);
   S.q++;
   const isFinal = S.q >= MAXQ;
   $("qNum").textContent = S.q + "/" + MAXQ;
@@ -679,7 +688,7 @@ async function submitAnswer(){
     $("who").textContent = S.rec.name; $("say").textContent = "…Pardon, vous disiez ?"; setInput(true); return; } r = offlineTurn(answer, isFinal); }
   if(!r) r = offlineTurn(answer, isFinal);
 
-  $("answer").value = ""; $("count").textContent = "280";
+  $("answer").value = ""; $("count").textContent = MAXLEN;
   let delta = Math.max(-25, Math.min(25, parseInt(r.delta,10) || 0));
   S.history.push({who:"you", text:answer});
   setScore(S.score + delta, delta);
@@ -820,7 +829,7 @@ function voiceAutoSend(){ try{ return localStorage.getItem("ilmj-voice-auto") !=
 
 function createMic(){
   const btn = $("mic");
-  let state = "idle", stream = null, rec = null, chunks = [], spoke = false, discard = false;
+  let state = "idle", stream = null, rec = null, chunks = [], spoke = false, discard = false, recStart = 0;
 
   function setState(st){
     state = st; btn.dataset.state = st;
@@ -838,7 +847,7 @@ function createMic(){
     state = "starting"; refresh();
     if(await aiAvailability() !== "ok"){ setState("idle"); note("Le micro utilise Groq : ajoute une clé dans ⚙ Paramètres."); return; }
     try{
-      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:true, channelCount:1}});
     }catch(e){
       setState("idle");
       note(e && e.name === "NotFoundError" ? "Aucun micro détecté sur ce PC."
@@ -848,7 +857,8 @@ function createMic(){
     if($("answer").disabled){ stream.getTracks().forEach(t => t.stop()); setState("idle"); return; }
     chunks = []; spoke = false; discard = false;
     const type = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find(t => MediaRecorder.isTypeSupported(t));
-    rec = new MediaRecorder(stream, type ? {mimeType:type} : undefined);
+    rec = new MediaRecorder(stream, type ? {mimeType:type, audioBitsPerSecond:128000} : {audioBitsPerSecond:128000});
+    recStart = performance.now();
     rec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
     rec.onstop = finish;
     rec.start(250);
@@ -857,7 +867,7 @@ function createMic(){
   }
   function stop(){ if(rec && rec.state !== "inactive") rec.stop(); }
 
-  // Arrêt automatique : 1,5 s de silence après avoir parlé, 8 s sans rien entendre, 30 s au maximum.
+  // Arrêt automatique : 2,5 s de silence après avoir parlé (laisse le temps de réfléchir), 8 s sans rien entendre, 45 s au maximum.
   function listen(){
     const actx = new AudioContext(), an = actx.createAnalyser();
     an.fftSize = 1024;
@@ -873,7 +883,7 @@ function createMic(){
       if(now - t0 < 400) floor = Math.min(0.02, Math.max(floor, rms)); // bruit de fond de la pièce
       if(rms > Math.max(0.015, floor * 2.5)){ if(++loud >= 3) spoke = true; last = now; } else loud = 0;
       btn.style.setProperty("--lvl", Math.min(1, rms * 10).toFixed(2));
-      if((spoke && now - last > 1500) || (!spoke && now - t0 > 8000) || now - t0 > 30000) stop();
+      if((spoke && now - last > 2500) || (!spoke && now - t0 > 8000) || now - t0 > 45000) stop();
     }, 60);
   }
 
@@ -884,14 +894,15 @@ function createMic(){
     setState("busy");
     const blob = new Blob(chunks, {type: rec.mimeType || "audio/webm"});
     let r;
-    try{ r = await DESKTOP.transcribe(new Uint8Array(await blob.arrayBuffer()), blob.type); }
+    try{ r = await DESKTOP.transcribe(new Uint8Array(await blob.arrayBuffer()), blob.type, (performance.now() - recStart) / 1000); }
     catch(e){ r = {error:{code:"unknown"}}; }
     setState("idle");
     if(r.error) return micError(r.error);
     const a = $("answer");
     if(a.disabled) return;
-    if(!r.data){ note("Je n'ai pas compris. Réessaie ?"); return; }
-    const text = ((a.value.trim() ? a.value.trim() + " " : "") + r.data).slice(0, 280);
+    const said = r.data && r.data.text;
+    if(!said){ note("Je n'ai pas compris. Réessaie ?"); return; }
+    const text = ((a.value.trim() ? a.value.trim() + " " : "") + said).slice(0, MAXLEN);
     a.value = text; a.dispatchEvent(new Event("input"));
     if(voiceAutoSend()) setTimeout(() => { if(a.value === text && !a.disabled && !S.busy) submitAnswer(); }, 800);
     else a.focus();
@@ -925,7 +936,7 @@ $("next").onclick = startInterview;
 $("form").addEventListener("submit", e=>{ e.preventDefault(); submitAnswer(); });
 $("answer").addEventListener("input", e=>{
   const t = e.target; t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight,110) + "px";
-  $("count").textContent = 280 - t.value.length;
+  $("count").textContent = MAXLEN - t.value.length;
   $("send").disabled = !t.value.trim() || S.busy;
 });
 $("answer").addEventListener("keydown", e=>{

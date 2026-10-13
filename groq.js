@@ -15,10 +15,10 @@ const PREFERRED_MODELS = [
   "openai/gpt-oss-20b",
   "llama-3.1-8b-instant",
 ];
-// Transcription du micro : le plus rapide d'abord, le plus précis en secours.
-const WHISPER_MODELS = ["whisper-large-v3-turbo", "whisper-large-v3"];
+// Transcription du micro : le plus précis d'abord, le plus rapide en secours.
+const WHISPER_MODELS = ["whisper-large-v3", "whisper-large-v3-turbo"];
 // Phrases que Whisper invente parfois sur du silence ou du bruit (sous-titres de vidéos).
-const HALLUCINATION = /[^.!?]*(sous-titr|amara\.org|merci d'avoir regardé|abonnez-vous)[^.!?]*[.!?]?/gi;
+const HALLUCINATION = /[^.!?]*(sous-titres réalisés|sous-titrage st|amara\.org|merci d'avoir regardé cette vidéo)[^.!?]*[.!?]?/gi;
 
 function cleanTranscript(text) {
   return String(text || "").replace(HALLUCINATION, "").replace(/\s+/g, " ").trim();
@@ -192,7 +192,7 @@ class GroqPool {
       const text = Array.isArray(out.segments)
         ? out.segments.filter(s => !(s.no_speech_prob > 0.6 && s.avg_logprob < -1)).map(s => s.text).join("")
         : out.text || "";
-      return { data: cleanTranscript(text) };
+      return { data: { text: cleanTranscript(text), raw: out.text || "" } };
     });
   }
 
