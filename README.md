@@ -11,22 +11,27 @@ Télécharge la dernière version dans les [Releases](https://github.com/schl-de
 
 Le jeu n'est pas signé : au premier lancement, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur » → *Informations complémentaires* → *Exécuter quand même*.
 
-## Recruteur IA (Groq)
+## Recruteur IA
 
-Le recruteur est joué par un modèle de l'[API Groq](https://console.groq.com/keys). Dans le jeu : **⚙ Paramètres** → colle une ou plusieurs clés API (`gsk_…`, une par ligne) → **Tester les clés**.
+Le recruteur est joué par le **serveur IA du jeu** (`https://ai.drafthome.fr`, un [GroqProxy](https://github.com/draft-yt-gaming/GroqProxy)), avec le modèle **`openai/gpt-oss-120b`**, imposé. Les joueurs n'ont aucune clé à fournir et ne peuvent pas changer de modèle. Sans connexion (ou si le serveur est saturé), le jeu passe en mode hors-ligne avec des réponses toutes faites.
 
-- Tu peux ajouter autant de clés que tu veux : le jeu les utilise à tour de rôle.
-- Quand une clé atteint sa limite (erreur 429), elle est mise en pause jusqu'à la fin de la limite et le jeu passe à la suivante. Une clé refusée (401) est marquée « refusée » et ignorée.
-- Si toutes les clés sont limitées sur le modèle choisi, le jeu essaie un autre modèle (`openai/gpt-oss-120b`, `llama-3.3-70b-versatile`, `openai/gpt-oss-20b`, `llama-3.1-8b-instant`).
-- ⚠️ Chez Groq, les limites sont comptées **par organisation (compte) et par modèle** : plusieurs clés d'un même compte partagent la même limite.
-- Les clés sont chiffrées avec Windows (DPAPI) dans `%APPDATA%\I Lost My Job (Again)\settings.json` et ne quittent pas le PC (sauf vers l'API Groq).
-- Sans clé (ou sans connexion), le jeu passe en mode hors-ligne avec des réponses toutes faites.
+### Protection de la clé du serveur
 
-Les variables d'environnement `GROQ_API_KEYS` (liste séparée par des virgules) ou `GROQ_API_KEY` sont aussi prises en compte.
+Une clé intégrée dans un jeu distribué ne peut jamais être cachée à 100 %. La protection se fait donc en deux couches :
+
+1. **Dans le jeu** (rend l'extraction difficile) :
+   - la clé n'est jamais dans le dépôt GitHub : elle est lue dans `secret/ai-key.txt` (ignoré par Git) et chiffrée dans `secret.js` au moment du build ;
+   - elle reste dans le process principal : la page du jeu ne la voit jamais et ne peut lire que `index.html` et `vendor/` ;
+   - les « fuses » Electron interdisent de lancer le jeu comme Node, avec `--inspect` ou `NODE_OPTIONS`, et vérifient l'intégrité des fichiers ; la version installée refuse `--remote-debugging-port`.
+2. **Sur le serveur** (rend la clé inutile hors du jeu) : la clé de sortie du jeu dans GroqProxy (≥ 1.2.0) doit avoir :
+   - **Modèles autorisés** : `openai/gpt-oss-120b` (ajoute `whisper-large-v3` seulement si tu veux le micro) ;
+   - **Verrou d'usage** : le prompt de [`serveur-ia/prompt-impose.txt`](serveur-ia/prompt-impose.txt), **Forcer le JSON** coché, **Réponses max** 400 tokens.
+
+   Avec ce verrou, une clé volée ne donne qu'un recruteur de jeu qui répond en JSON : traduction, code ou questions générales sont refusés (testé), les autres routes de l'API sont bloquées.
 
 ## Répondre au micro
 
-Clique sur 🎤 dans la barre de réponse et parle : l'enregistrement s'arrête tout seul après 2,5 s de silence (ou clique sur ■), ta voix est transcrite par **Whisper sur Groq** (`whisper-large-v3`, le plus précis ; mêmes clés, même rotation que le recruteur) et la réponse est envoyée automatiquement. Tu peux désactiver l'envoi automatique dans ⚙ Paramètres pour relire avant d'envoyer.
+Clique sur 🎤 dans la barre de réponse et parle : l'enregistrement s'arrête tout seul après 2,5 s de silence (ou clique sur ■), ta voix est transcrite par **Whisper** (`whisper-large-v3`) via le serveur IA du jeu et la réponse est envoyée automatiquement. Tu peux désactiver l'envoi automatique dans ⚙ Paramètres pour relire avant d'envoyer. Si `whisper-large-v3` n'est pas autorisé sur la clé du serveur, le bouton 🎤 disparaît.
 
 - Ce que tu as dit s'affiche dans la bulle (« Toi : … ») au-dessus de la réaction du recruteur.
 - La musique se coupe pendant que tu parles ; le son du micro est envoyé brut (sans suppression de bruit) pour une meilleure transcription.
@@ -50,11 +55,13 @@ Bouton 🔊 Son (en haut à droite ou dans les menus) ou touche **M** pour coupe
 
 ## Développement
 
+Avant de construire : mets la clé de sortie du jeu dans `secret/ai-key.txt` (ce dossier n'est jamais envoyé sur GitHub).
+
 ```bash
 npm install
 npm start          # lance le jeu
 npm run dev        # avec les DevTools
-npm run dist       # construit dist/ILostMyJobAgain-Setup-X.Y.Z.exe et la version portable
+npm run dist       # construit dist/ILostMyJobAgain-Setup-X.Y.Z.exe et la version portable (exige secret/ai-key.txt)
 npm run vendor     # recopie three.js r128 et la police Baloo 2 dans vendor/
 npm run icon       # régénère build/icon.png
 ```
@@ -64,7 +71,11 @@ Structure :
 - `index.html` : tout le jeu (scène 3D, interface, logique). S'ouvre aussi directement dans un navigateur (mode hors-ligne).
 - `main.js` : process principal Electron (fenêtre, réglages, protocole `app://`, IPC).
 - `preload.js` : pont sécurisé `window.desktop` entre la page et le process principal.
-- `groq.js` : appels à l'API Groq avec rotation des clés et modèles de secours.
+- `ai.js` : appels au serveur IA du jeu (recruteur et transcription), modèle imposé.
+- `scripts/embed-secret.js` : chiffre la clé dans `secret.js` avant chaque build.
+- `serveur-ia/prompt-impose.txt` : prompt à mettre dans le verrou d'usage de la clé du jeu sur GroqProxy.
 - `vendor/` : three.js et la police, embarqués pour jouer sans Internet.
+
+Pour tester sans le vrai serveur (développement uniquement) : `ILMJ_AI_URL` et `ILMJ_AI_KEY` pointent vers un faux serveur local ; ces variables sont ignorées par la version installée.
 
 Raccourcis : **F11** plein écran, **M** couper/remettre le son.

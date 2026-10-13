@@ -1,6 +1,6 @@
 # I Lost My Job (Again) — consignes
 
-Jeu Windows (Electron) : `index.html` (jeu three.js), `main.js` (process principal), `preload.js`, `groq.js` (API Groq + rotation de clés). Voir README.md.
+Jeu Windows (Electron) : `index.html` (jeu three.js), `main.js` (process principal), `preload.js`, `ai.js` (serveur IA du jeu https://ai.drafthome.fr, GroqProxy, modèle imposé `openai/gpt-oss-120b`). Voir README.md.
 
 ## Synchronisation GitHub (demandé par le propriétaire)
 
@@ -12,5 +12,8 @@ Le dépôt est partagé (d'autres personnes y poussent).
 ## Notes
 
 - `index.html` doit continuer à fonctionner seul dans un navigateur (pas de `window.desktop` → mode hors-ligne).
-- Ne jamais écrire de vraie clé API dans le dépôt. Pour tester l'IA sans clé : `GROQ_BASE_URL` pointe vers un faux serveur local.
+- **Clé du serveur IA** : uniquement dans `secret/ai-key.txt` (ignoré par Git), chiffrée dans `secret.js` (ignoré aussi) par `npm run dist`. Ne jamais la committer, l'afficher ni la mettre dans un message de commit. Vérifier `git status` avant chaque commit.
+- La page ne doit jamais recevoir la clé ; le protocole `app://` ne sert que `index.html` et `vendor/`.
+- La version installée refuse les options de débogage et a des fuses Electron : pour vérifier un build, ne pas compter sur `--remote-debugging-port` (le jeu se ferme, c'est voulu).
+- Pour tester l'IA sans le vrai serveur : `ILMJ_AI_URL` / `ILMJ_AI_KEY` (développement seulement) vers un faux serveur local.
 - npm bloque les scripts d'installation : après `npm install`, lancer `node node_modules/electron/install.js` si `node_modules/electron/dist` manque.
