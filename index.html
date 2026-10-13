@@ -141,7 +141,7 @@ textarea::placeholder{color:var(--muted)}
       <div class="bar"><div class="fill" id="fill"></div></div>
       <div class="pop" id="pop"></div>
     </div>
-    <button class="card mus" type="button" aria-label="Couper la musique (M)">🔊</button>
+    <button class="card mus" type="button" aria-label="Couper le son (M)">🔊</button>
   </div>
   <div class="card bubble" id="bubble" aria-live="polite"><div class="who" id="who"></div><span id="say"></span><span class="q" id="ask"></span></div>
   <div class="spacer"></div>
@@ -159,7 +159,7 @@ textarea::placeholder{color:var(--muted)}
     <p class="lost">Jobs perdus à ce jour : <b id="lostCount">0</b></p>
     <button class="btn" id="go">Aller à l'entretien</button>
     <div class="row panel-row">
-      <button class="btn ghost mus" type="button" data-label="Musique">🔊 Musique</button>
+      <button class="btn ghost mus" type="button" data-label="Son">🔊 Son</button>
       <button class="btn ghost desk-btn" id="openSettings" type="button">⚙ Paramètres</button>
       <button class="btn ghost desk-btn" id="quit" type="button">Quitter</button>
     </div>
@@ -176,7 +176,7 @@ textarea::placeholder{color:var(--muted)}
     <p class="after" id="after"></p>
     <button class="btn" id="next">Entretien suivant</button>
     <div class="row panel-row">
-      <button class="btn ghost mus" type="button" data-label="Musique">🔊 Musique</button>
+      <button class="btn ghost mus" type="button" data-label="Son">🔊 Son</button>
       <button class="btn ghost desk-btn" id="openSettings2" type="button">⚙ Paramètres</button>
       <button class="btn ghost desk-btn" id="quit2" type="button">Quitter</button>
     </div>
@@ -207,7 +207,9 @@ textarea::placeholder{color:var(--muted)}
 
     <h3><label for="vol">Volume de la musique</label></h3>
     <input type="range" id="vol" min="0" max="100" step="5">
-    <p>Touche <b>M</b> pour couper ou remettre la musique.</p>
+    <h3><label for="fx">Volume de la voix du recruteur</label></h3>
+    <input type="range" id="fx" min="0" max="100" step="5">
+    <p>Touche <b>M</b> pour couper ou remettre tout le son.</p>
 
     <label class="check"><input type="checkbox" id="fs"> Plein écran (F11)</label>
 
@@ -221,9 +223,9 @@ textarea::placeholder{color:var(--muted)}
 <script>
 /* ============ Données ============ */
 const RECRUTEURS = [
-  {name:"Gérard", persona:"blasé, recruteur depuis 31 ans, soupire beaucoup, rien ne l'impressionne mais il respecte l'aplomb", tie:0x3a6ea5, skin:0xf2c29b, acc:"moustache"},
-  {name:"Clémence", persona:"hyper-enthousiaste, parle en jargon startup, adore les réponses folles mais déteste l'ennui", tie:0xff6f91, skin:0xe8a87c, acc:"chignon"},
-  {name:"Dr. Paulo", persona:"paranoïaque, soupçonne tout le monde d'être un espion d'un concurrent, traque la moindre contradiction", tie:0x4fd1a0, skin:0xc68863, acc:"lunettes"}
+  {name:"Gérard", persona:"blasé, recruteur depuis 31 ans, soupire beaucoup, rien ne l'impressionne mais il respecte l'aplomb", tie:0x3a6ea5, skin:0xf2c29b, acc:"moustache", voice:{base:150, wave:"triangle", jitter:0.3}},
+  {name:"Clémence", persona:"hyper-enthousiaste, parle en jargon startup, adore les réponses folles mais déteste l'ennui", tie:0xff6f91, skin:0xe8a87c, acc:"chignon", voice:{base:390, wave:"square", jitter:0.6}},
+  {name:"Dr. Paulo", persona:"paranoïaque, soupçonne tout le monde d'être un espion d'un concurrent, traque la moindre contradiction", tie:0x4fd1a0, skin:0xc68863, acc:"lunettes", voice:{base:255, wave:"sawtooth", jitter:1.8}}
 ];
 const POSTES = [
   "Dresseur de pigeons corporate",
@@ -462,22 +464,36 @@ function makeEngine(ctx, dest){
   };
 }
 
+// Voix du recruteur quand son texte s'écrit (petits bips façon Animal Crossing).
+const VOWEL_PITCH = {a:0,"à":0,"â":0,e:2,"é":3,"è":2,"ê":2,"ë":2,i:4,"î":4,"ï":4,y:4,o:-2,"ô":-2,u:-3,"ù":-3,"û":-3};
+const MOOD_PITCH = {neutral:0, amused:2, impressed:1, annoyed:-2, suspicious:-1, furious:4};
+function blip(ctx, dest, freq, wave, vel){
+  const t = ctx.currentTime + 0.005;
+  const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  o.type = wave; o.frequency.setValueAtTime(freq*1.12, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.04);
+  f.type = "bandpass"; f.frequency.value = Math.min(freq*3, 2500); f.Q.value = 1.1;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.27*vel, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.065);
+  o.connect(f); f.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.08);
+}
+
 const MUSIC = (() => {
   const AC = window.AudioContext || window.webkitAudioContext;
-  const pref = {vol:0.6, muted:false};
+  const pref = {vol:0.6, fx:0.7, muted:false};
   try{ Object.assign(pref, JSON.parse(localStorage.getItem("ilmj-music") || "{}")); }catch(e){}
-  let ctx = null, master = null, eng = null, mode = "menu", tension = 50;
-  const audible = () => !pref.muted && pref.vol > 0;
+  let ctx = null, master = null, musicGain = null, fxGain = null, eng = null, mode = "menu", tension = 50;
+  const audible = () => !pref.muted && (pref.vol > 0 || pref.fx > 0);
 
   function sync(){
     document.querySelectorAll(".mus").forEach(b => {
       const icon = audible() ? "🔊" : "🔇";
       b.textContent = b.dataset.label ? icon + " " + b.dataset.label : icon;
       b.setAttribute("aria-pressed", String(audible()));
-      b.setAttribute("aria-label", (audible() ? "Couper" : "Remettre") + " la musique (M)");
+      b.setAttribute("aria-label", (audible() ? "Couper" : "Remettre") + " le son (M)");
     });
     if(!ctx) return;
-    master.gain.setTargetAtTime(audible() ? pref.vol*0.6 : 0, ctx.currentTime, 0.05);
+    master.gain.setTargetAtTime(pref.muted ? 0 : 1, ctx.currentTime, 0.05);
+    musicGain.gain.setTargetAtTime(pref.vol*0.6, ctx.currentTime, 0.05);
+    fxGain.gain.setTargetAtTime(pref.fx*0.6, ctx.currentTime, 0.05);
     const run = audible() && !document.hidden;
     if(run && ctx.state === "suspended") ctx.resume();
     if(!run && ctx.state === "running") setTimeout(() => { if(!(audible() && !document.hidden)) ctx.suspend(); }, 250);
@@ -489,7 +505,9 @@ const MUSIC = (() => {
     if(!ctx){
       ctx = new AC();
       master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
-      eng = makeEngine(ctx, master);
+      musicGain = ctx.createGain(); musicGain.connect(master);
+      fxGain = ctx.createGain(); fxGain.connect(master);
+      eng = makeEngine(ctx, musicGain);
       eng.setMode(mode); eng.setTension(tension);
       setInterval(() => { if(ctx.state === "running") eng.scheduleUntil(ctx.currentTime + 0.15); }, 40);
     }
@@ -503,10 +521,18 @@ const MUSIC = (() => {
     start,
     setMode(m){ mode = m; if(eng) eng.setMode(m); },
     setTension(s){ tension = s; if(eng) eng.setTension(s); },
-    jingle(kind){ if(eng && audible()) eng.jingle(kind); },
-    toggle(){ pref.muted = !pref.muted; if(!pref.muted && pref.vol === 0) pref.vol = 0.6; start(); save(); },
+    jingle(kind){ if(eng && audible() && pref.vol > 0) eng.jingle(kind); },
+    talk(ch, voice, mood){
+      if(!ctx || ctx.state !== "running" || pref.muted || !pref.fx || !voice) return;
+      const st = (ch in VOWEL_PITCH ? VOWEL_PITCH[ch] : ch.charCodeAt(0) % 3 - 1)
+        + (MOOD_PITCH[mood] || 0) + (Math.random()*2 - 1) * voice.jitter;
+      blip(ctx, fxGain, voice.base * Math.pow(2, st/12), voice.wave, mood === "furious" ? 1.3 : 1);
+    },
+    toggle(){ pref.muted = !pref.muted; if(!pref.muted && !pref.vol && !pref.fx){ pref.vol = 0.6; pref.fx = 0.7; } start(); save(); },
     setVolume(v){ pref.vol = v; if(v > 0) pref.muted = false; start(); save(); },
+    setFx(v){ pref.fx = v; if(v > 0) pref.muted = false; start(); save(); },
     get volume(){ return pref.muted ? 0 : pref.vol; },
+    get fx(){ return pref.muted ? 0 : pref.fx; },
     sync
   };
 })();
@@ -517,10 +543,14 @@ function typeInto(el, text){
   const tok = ++typeTok;
   return new Promise(res=>{
     if(reduced){ el.textContent = text; res(); return; }
-    let i = 0; el.textContent = ""; R.talking = true;
+    let i = 0, n = 0; el.textContent = ""; R.talking = true;
     (function step(){
       if(tok !== typeTok){ res(); return; }
       i += 2; el.textContent = text.slice(0,i);
+      if(n++ % 2 === 0){
+        const c = text.slice(i-2, i).toLowerCase().match(/[a-zàâäéèêëîïôöùûüç]/);
+        if(c && S.rec) MUSIC.talk(c[0], S.rec.voice, R.mood);
+      }
       if(i < text.length) setTimeout(step, 24); else { R.talking = false; res(); }
     })();
   });
@@ -704,6 +734,7 @@ function renderSettings(st){
   models.forEach(m => sel.append(new Option(m, m, false, m === st.model)));
   $("fs").checked = st.fullscreen;
   $("vol").value = Math.round(MUSIC.volume * 100);
+  $("fx").value = Math.round(MUSIC.fx * 100);
 }
 async function refreshAiStatus(){
   const st = await DESKTOP.getSettings();
@@ -756,6 +787,7 @@ if(DESKTOP){
   $("model").onchange = async e => { renderSettings(await DESKTOP.setModel(e.target.value)); $("keyMsg").textContent = "Modèle enregistré."; };
   $("fs").onchange = e => DESKTOP.setFullscreen(e.target.checked);
   $("vol").oninput = e => MUSIC.setVolume(e.target.value / 100);
+  $("fx").oninput = e => { MUSIC.setFx(e.target.value / 100); MUSIC.talk("a", (S.rec || RECRUTEURS[0]).voice, "neutral"); };
   DESKTOP.onFullscreen(on => { $("fs").checked = on; });
   refreshAiStatus();
   MUSIC.start(); // l'appli Windows autorise le son sans clic : musique dès l'écran titre

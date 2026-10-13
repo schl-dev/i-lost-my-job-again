@@ -24,7 +24,7 @@ Le recruteur est joué par un modèle de l'[API Groq](https://console.groq.com/k
 
 Les variables d'environnement `GROQ_API_KEYS` (liste séparée par des virgules) ou `GROQ_API_KEY` sont aussi prises en compte.
 
-## Musique
+## Musique et sons
 
 La musique de fond (bossa « musique d'ascenseur ») est générée en direct par le jeu (Web Audio), sans fichier audio : elle marche hors-ligne et réagit à la partie.
 
@@ -32,7 +32,9 @@ La musique de fond (bossa « musique d'ascenseur ») est générée en direct pa
 - son plus sourd quand l'impression descend sous 45 puis 30 ;
 - fanfare si tu es embauché, trombone triste « wah wah wah » si tu es refusé ou viré.
 
-Bouton 🔊 (en haut à droite ou dans les menus) ou touche **M** pour couper/remettre ; volume dans ⚙ Paramètres.
+Quand le recruteur écrit, on entend sa « voix » : de petits bips façon Animal Crossing, différents pour chaque recruteur (Gérard grave et las, Clémence aiguë, Dr. Paulo nasillard et nerveux), plus aigus quand il est furieux, plus graves quand il est agacé.
+
+Bouton 🔊 Son (en haut à droite ou dans les menus) ou touche **M** pour couper/remettre tout le son ; volumes de la musique et de la voix dans ⚙ Paramètres.
 
 ## Développement
 
@@ -53,4 +55,4 @@ Structure :
 - `groq.js` : appels à l'API Groq avec rotation des clés et modèles de secours.
 - `vendor/` : three.js et la police, embarqués pour jouer sans Internet.
 
-Raccourcis : **F11** plein écran, **M** couper/remettre la musique.
+Raccourcis : **F11** plein écran, **M** couper/remettre le son.
