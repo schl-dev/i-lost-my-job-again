@@ -10,6 +10,11 @@ Le dépôt est partagé (d'autres personnes y poussent).
 - Nouvelle fonctionnalité → version x.Y.0, correction → x.y.Z dans `package.json`, puis `npm run dist` et `gh release create vX.Y.Z dist/ILostMyJobAgain-Setup.exe dist/ILostMyJobAgain-Setup.exe.blockmap dist/latest.yml dist/ILostMyJobAgain-Installeur.exe`, notes en français. Les noms de fichiers sont fixes (sans numéro de version) : l'installeur à envoyer télécharge `releases/latest/download/ILostMyJobAgain-Setup.exe`, et le jeu installé se met à jour grâce à `latest.yml` (electron-updater). Release publiée (pas brouillon/pré-release), sinon personne ne la reçoit.
 - Le dépôt est **public** : rien de secret ne doit y entrer.
 
+## Clins d'œil aux animés (demandé par les créateurs)
+
+Les créateurs aiment Naruto, Sword Art Online et Hunter x Hunter, mais ne veulent **aucun problème avec les ayants droit** : seulement des allusions à des idées génériques (ninjas, mondes virtuels à étages, chasseurs/aura). Jamais de nom d'œuvre, de personnage ou de technique affiché ou envoyé à l'IA, ni de design reconnaissable, logo, symbole, musique ou réplique. Les noms d'animés ne figurent que dans les mots-clés détectés dans les réponses du joueur (`ANSWER_FX`), qui ne s'affichent jamais.
+Recruteurs secrets (`SECRETS`) : Sensei Lambin (code `ninja`), Solo (`solo`), Monsieur Atout (`atout`).
+
 ## Notes
 
 - `index.html` doit continuer à fonctionner seul dans un navigateur (pas de `window.desktop` → mode hors-ligne).
