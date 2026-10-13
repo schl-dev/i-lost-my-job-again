@@ -10,6 +10,15 @@ Le dépôt est partagé (d'autres personnes y poussent).
 - Nouvelle fonctionnalité → version x.Y.0, correction → x.y.Z dans `package.json`, puis `npm run dist` et `gh release create vX.Y.Z dist/ILostMyJobAgain-Setup.exe dist/ILostMyJobAgain-Setup.exe.blockmap dist/latest.yml dist/ILostMyJobAgain-Installeur.exe`, notes en français. Les noms de fichiers sont fixes (sans numéro de version) : l'installeur à envoyer télécharge `releases/latest/download/ILostMyJobAgain-Setup.exe`, et le jeu installé se met à jour grâce à `latest.yml` (electron-updater). Release publiée (pas brouillon/pré-release), sinon personne ne la reçoit.
 - Le dépôt est **public** : rien de secret ne doit y entrer.
 
+## Publier une version — À LIRE (deux personnes travaillent sur le jeu)
+
+- **Pousser du code ne met PAS à jour le jeu des joueurs.** L'installeur et la mise à jour automatique ne récupèrent que les **releases GitHub** (le `.exe` construit + `latest.yml`). Un commit sans release ne change rien chez eux.
+- Une release doit être construite **avec la clé du serveur IA** (`secret/ai-key.txt`). Cette clé n'existe que sur le PC de Draft (propriétaire du dépôt et du serveur IA) ; sans elle, `npm run dist` s'arrête exprès.
+- **Ne jamais publier une release construite sans la clé** (en contournant `predist`, en retirant `secret.js`…) : la mise à jour automatique installerait chez tous les joueurs un jeu sans recruteur IA.
+- **Si tu n'as pas `secret/ai-key.txt`** : monte la version dans `package.json`, commit + push sur `main`, puis **préviens Draft** (« version X.Y.Z poussée : <résumé>, tu peux publier la release ? »). C'est lui (ou son Claude) qui construit et publie. Si un workflow de publication existe dans `.github/workflows/`, il publie tout seul : vérifier son exécution dans l'onglet Actions de GitHub.
+- **Si tu modifies `serveur-ia/prompt-impose.txt`** : ce prompt est appliqué **sur le serveur IA** (verrou de la clé du jeu dans GroqProxy), pas par le jeu. Préviens Draft pour qu'il le mette à jour sur le serveur, sinon l'ancien reste imposé.
+- Ne jamais publier de release « pour tester » : chaque release publiée part chez tous les joueurs.
+
 ## Clins d'œil aux animés (demandé par les créateurs)
 
 Les créateurs aiment Naruto, Sword Art Online et Hunter x Hunter, mais ne veulent **aucun problème avec les ayants droit** : seulement des allusions à des idées génériques (ninjas, mondes virtuels à étages, chasseurs/aura). Jamais de nom d'œuvre, de personnage ou de technique affiché ou envoyé à l'IA, ni de design reconnaissable, logo, symbole, musique ou réplique. Les noms d'animés ne figurent que dans les mots-clés détectés dans les réponses du joueur (`ANSWER_FX`), qui ne s'affichent jamais.
