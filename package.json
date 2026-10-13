@@ -1,0 +1,67 @@
+{
+  "name": "i-lost-my-job-again",
+  "productName": "I Lost My Job (Again)",
+  "version": "1.0.0",
+  "description": "Jeu d'entretien d'embauche comique : un recruteur 3D juge tes réponses, et tu finis toujours par perdre le job.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "vendor": "node scripts/vendor.js",
+    "icon": "electron scripts/make-icon.js",
+    "dist": "electron-builder --win --x64"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@fontsource/baloo-2": "^5.3.0",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "three": "^0.128.0"
+  },
+  "build": {
+    "appId": "fr.schl.ilostmyjobagain",
+    "productName": "I Lost My Job (Again)",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "groq.js",
+      "index.html",
+      "vendor/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "I Lost My Job (Again)",
+      "artifactName": "ILostMyJobAgain-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "ILostMyJobAgain-Portable-${version}.${ext}"
+    }
+  }
+}
